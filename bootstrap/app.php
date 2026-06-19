@@ -21,6 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'device.key' => \App\Http\Middleware\EnsureDeviceKey::class,
         ]);
+        // Invitados (navegador) al login del panel; las peticiones JSON reciben 401.
+        $middleware->redirectGuestsTo(fn () => '/admin/login');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Respuestas de error uniformes para la API: { ok:false, error }.
