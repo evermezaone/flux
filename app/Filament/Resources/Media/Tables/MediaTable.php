@@ -35,6 +35,13 @@ class MediaTable
             ])
             ->recordActions([
                 self::pedirClipAction(),
+                // Ver el video/foto inline en el navegador (REQ-0018).
+                Action::make('ver')
+                    ->label('Ver video')
+                    ->icon(Heroicon::OutlinedPlayCircle)
+                    ->url(fn (Media $record): ?string => filled($record->url) ? route('media.view', $record) : null)
+                    ->openUrlInNewTab()
+                    ->visible(fn (Media $record): bool => filled($record->url)),
                 Action::make('descargar')
                     ->label('Descargar')
                     ->icon(Heroicon::OutlinedArrowDownTray)
@@ -88,14 +95,19 @@ class MediaTable
                     return;
                 }
 
+                // REQ-0018: se pasa el file objetivo para que el clip subido actualice ESTA fila
+                // (mismo registro) en lugar de crear uno nuevo con otro nombre.
                 Command::create([
                     'device_id' => $record->device_id,
                     'cmd' => 'publish_clip',
-                    'params' => ['ts' => $record->ts_start->toIso8601String()],
+                    'params' => [
+                        'ts' => $record->ts_start->toIso8601String(),
+                        'file' => $record->file,
+                    ],
                     'status' => 'pending',
                 ]);
 
-                Notification::make()->title('Pedido de clip encolado')->success()->send();
+                Notification::make()->title('Pedido de clip encolado (actualizará esta fila)')->success()->send();
             });
     }
 }

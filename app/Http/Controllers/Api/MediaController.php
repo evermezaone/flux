@@ -94,6 +94,35 @@ class MediaController extends Controller
 
         abort_if(blank($media->url) || ! Storage::disk('local')->exists($path), 404, 'Archivo no disponible');
 
-        return Storage::disk('local')->download($path);
+        // Fuerza el mime correcto (REQ-0018): el archivo puede no tener extension si reusa el
+        // nombre de la fila objetivo; igual debe descargar/reproducir bien.
+        return Storage::disk('local')->download($path, basename($media->file), [
+            'Content-Type' => $this->mimeFor($media),
+        ]);
+    }
+
+    /** Visualizacion inline del media en el navegador (panel/operador) - REQ-0018. */
+    public function view(Media $media): StreamedResponse
+    {
+        $path = 'media/'.basename($media->file);
+
+        abort_if(blank($media->url) || ! Storage::disk('local')->exists($path), 404, 'Archivo no disponible');
+
+        return Storage::disk('local')->response($path, basename($media->file), [
+            'Content-Type' => $this->mimeFor($media),
+        ]); // disposition inline por defecto
+    }
+
+    /** Mime segun la extension real o el tipo del media (clip -> video, si no imagen). */
+    private function mimeFor(Media $media): string
+    {
+        $ext = strtolower(pathinfo($media->file, PATHINFO_EXTENSION));
+
+        return match ($ext) {
+            'mp4' => 'video/mp4',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            default => $media->tipo === 'clip' ? 'video/mp4' : 'image/jpeg',
+        };
     }
 }

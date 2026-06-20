@@ -84,4 +84,39 @@ class MediaUploadTest extends TestCase
             ->get("/api/v1/media/{$media->id}/download")
             ->assertOk();
     }
+
+    public function test_view_inline_requiere_operador_y_responde(): void
+    {
+        Storage::fake('local');
+        $this->device();
+        $file = UploadedFile::fake()->create('c.mp4', 512, 'video/mp4');
+        $this->post('/api/v1/media/upload', ['file' => 'c.mp4', 'tipo' => 'clip', 'archivo' => $file], ['X-Device-Key' => 'k-123']);
+        $media = Media::first();
+
+        $this->getJson("/api/v1/media/{$media->id}/view")->assertStatus(401);
+        $this->actingAs(User::factory()->create())
+            ->get("/api/v1/media/{$media->id}/view")
+            ->assertOk()
+            ->assertHeader('content-type', 'video/mp4');
+    }
+
+    public function test_resubir_mismo_file_actualiza_la_misma_fila(): void
+    {
+        // REQ-0018: subir con el mismo 'file' (la fila objetivo) no crea otro registro.
+        Storage::fake('local');
+        $this->device();
+
+        $this->post('/api/v1/media/upload', [
+            'file' => 'clip_target.mp4', 'tipo' => 'clip',
+            'archivo' => UploadedFile::fake()->create('rec.mp4', 256, 'video/mp4'),
+        ], ['X-Device-Key' => 'k-123'])->assertOk();
+
+        $this->post('/api/v1/media/upload', [
+            'file' => 'clip_target.mp4', 'tipo' => 'clip',
+            'archivo' => UploadedFile::fake()->create('rec2.mp4', 256, 'video/mp4'),
+        ], ['X-Device-Key' => 'k-123'])->assertOk();
+
+        $this->assertSame(1, Media::where('file', 'clip_target.mp4')->count());
+        $this->assertSame(1, Media::count());
+    }
 }
