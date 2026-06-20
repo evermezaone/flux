@@ -35,6 +35,7 @@ class MediaTable
             ])
             ->recordActions([
                 self::pedirClipAction(),
+                self::pedirTimelapseAction(),
                 // Ver el video/foto inline en el navegador (REQ-0018).
                 Action::make('ver')
                     ->label('Ver video')
@@ -108,6 +109,27 @@ class MediaTable
                 ]);
 
                 Notification::make()->title('Pedido de clip encolado (actualizará esta fila)')->success()->send();
+            });
+    }
+
+    /** Encola publish_timelapse: el dispositivo arma un mp4 acelerado del segmento y lo sube (REQ-0022). */
+    private static function pedirTimelapseAction(): Action
+    {
+        return Action::make('pedir_timelapse')
+            ->label('Pedir timelapse')
+            ->icon(Heroicon::OutlinedFilm)
+            ->requiresConfirmation()
+            // Solo en filas timelapse (que tienen una carpeta de frames).
+            ->visible(fn (Media $record): bool => $record->tipo === 'timelapse')
+            ->action(function (Media $record): void {
+                Command::create([
+                    'device_id' => $record->device_id,
+                    'cmd' => 'publish_timelapse',
+                    'params' => ['file' => $record->file],
+                    'status' => 'pending',
+                ]);
+
+                Notification::make()->title('Pedido de timelapse encolado (se subirá como video)')->success()->send();
             });
     }
 }

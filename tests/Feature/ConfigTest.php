@@ -69,6 +69,16 @@ class ConfigTest extends TestCase
         $this->assertDatabaseHas('commands', ['cmd' => 'config_update', 'status' => 'pending']);
     }
 
+    public function test_publish_timelapse_es_comando_permitido(): void
+    {
+        $this->device();
+        $this->actingAs(User::factory()->create())
+            ->postJson('/api/v1/commands', ['device' => 'tel-01', 'cmd' => 'publish_timelapse', 'params' => ['file' => 'timelapse_x']])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('commands', ['cmd' => 'publish_timelapse', 'status' => 'pending']);
+    }
+
     public function test_panel_configuracion_carga(): void
     {
         $this->actingAs(User::factory()->create())
