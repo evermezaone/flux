@@ -29,6 +29,8 @@
         <!-- Sin credenciales de admin en tests: el seeder debe fallar (no crear clave conocida). -->
         <env name="ADMIN_EMAIL" value=""/>
         <env name="ADMIN_PASSWORD" value=""/>
+        <!-- Limite bajo para poder ejercitar el rate-limit en tests. -->
+        <env name="INGESTA_RATE_LIMIT" value="3"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

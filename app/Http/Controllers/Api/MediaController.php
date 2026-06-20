@@ -7,6 +7,8 @@ use App\Models\Media;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Registro de metadatos de video (VialSense -> FLX). Upsert por 'file'.
@@ -48,5 +50,49 @@ class MediaController extends Controller
             'id' => $media->id,
             'created' => $media->wasRecentlyCreated,
         ]);
+    }
+
+    /**
+     * Subida de un clip puntual a demanda (VialSense -> FLX). Multipart.
+     * Guarda el archivo, hace upsert del media por 'file' y setea url de descarga.
+     */
+    public function upload(Request $request): JsonResponse
+    {
+        /** @var \App\Models\Device $device */
+        $device = $request->attributes->get('device');
+
+        $data = $request->validate([
+            'file' => ['required', 'string', 'max:255'],   // nombre logico (ej. 20260619_1830.mp4)
+            'tipo' => ['required', 'in:timelapse,clip'],
+            'archivo' => ['required', 'file', 'mimes:mp4,jpg,jpeg,png', 'max:102400'], // 100 MB
+        ]);
+
+        $name = basename($data['file']); // evita traversal
+        $request->file('archivo')->storeAs('media', $name, 'local');
+        $sizeMb = round($request->file('archivo')->getSize() / 1048576, 2);
+
+        $media = Media::updateOrCreate(
+            ['file' => $name],
+            [
+                'device_id' => $device->id,
+                'site_id' => $device->site_id,
+                'tipo' => $data['tipo'],
+                'size_mb' => $sizeMb,
+                'available' => true,
+            ]
+        );
+        $media->update(['url' => "/api/v1/media/{$media->id}/download"]);
+
+        return response()->json(['ok' => true, 'id' => $media->id, 'url' => $media->url]);
+    }
+
+    /** Descarga del clip subido (panel/operador). */
+    public function download(Media $media): StreamedResponse
+    {
+        $path = 'media/'.basename($media->file);
+
+        abort_if(blank($media->url) || ! Storage::disk('local')->exists($path), 404, 'Archivo no disponible');
+
+        return Storage::disk('local')->download($path);
     }
 }

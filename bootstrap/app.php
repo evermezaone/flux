@@ -23,6 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         // Invitados (navegador) al login del panel; las peticiones JSON reciben 401.
         $middleware->redirectGuestsTo(fn () => '/admin/login');
+
+        // Cabeceras de seguridad en todas las respuestas (REQ-0009).
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Respuestas de error uniformes para la API: { ok:false, error }.

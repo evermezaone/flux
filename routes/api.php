@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
 
-    // Ingesta (app VialSense -> backend): requiere X-Device-Key.
-    Route::middleware('device.key')->group(function () {
+    // Ingesta (app VialSense -> backend): requiere X-Device-Key + rate-limit por device (REQ-0009).
+    Route::middleware(['device.key', 'throttle:ingesta'])->group(function () {
         // Prueba de autenticacion del dispositivo (REQ-0002).
         Route::get('/ping', function (Request $request) {
             $device = $request->attributes->get('device');
@@ -32,6 +32,8 @@ Route::prefix('v1')->group(function () {
         // Ingesta (REQ-0003).
         Route::post('/telemetry', [TelemetryController::class, 'store']);
         Route::post('/media', [MediaController::class, 'store']);
+        // Subida de clip a demanda (REQ-0008).
+        Route::post('/media/upload', [MediaController::class, 'upload']);
 
         // Cola de comandos: lado dispositivo (REQ-0004).
         Route::get('/commands', [CommandController::class, 'pull']);
@@ -48,6 +50,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/devices', [DeviceController::class, 'index']);
         Route::get('/telemetry', [TelemetryQueryController::class, 'index']);
         Route::get('/summary', [TelemetryQueryController::class, 'summary']);
+
+        // Descarga de clip subido (REQ-0008).
+        Route::get('/media/{media}/download', [MediaController::class, 'download']);
     });
 
 });
