@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AppVersionController;
 use App\Http\Controllers\Api\CommandController;
+use App\Http\Controllers\Api\ConfigController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\SiteController;
@@ -45,6 +46,9 @@ Route::prefix('v1')->group(function () {
         // Cola de comandos: lado dispositivo (REQ-0004).
         Route::get('/commands', [CommandController::class, 'pull']);
         Route::post('/commands/{command}/ack', [CommandController::class, 'ack']);
+
+        // Config efectiva del equipo (global + overrides del device). REQ-0020.
+        Route::get('/config', [ConfigController::class, 'show']);
     });
 
     // Lado operador/panel. Auth de operador (sesion).
