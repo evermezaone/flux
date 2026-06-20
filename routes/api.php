@@ -58,8 +58,6 @@ Route::prefix('v1')->group(function () {
         Route::get('/telemetry', [TelemetryQueryController::class, 'index']);
         Route::get('/summary', [TelemetryQueryController::class, 'summary']);
 
-        // Descarga de clip subido (REQ-0008). Nombrada para generar URLs con base path (REQ-0016).
-        Route::get('/media/{media}/download', [MediaController::class, 'download'])->name('media.download');
     });
 
 });
