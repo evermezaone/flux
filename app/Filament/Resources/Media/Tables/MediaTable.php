@@ -85,8 +85,8 @@ class MediaTable
             ->label('Pedir clip')
             ->icon(Heroicon::OutlinedVideoCamera)
             ->requiresConfirmation()
-            // publish_clip requiere ts (contrato REQ-0004): sin ts_start no se ofrece la accion.
-            ->visible(fn (Media $record): bool => filled($record->ts_start))
+            // Solo en clips con hora: un timelapse no tiene un mp4 unico para pedir (REQ-0021).
+            ->visible(fn (Media $record): bool => $record->tipo === 'clip' && filled($record->ts_start))
             ->action(function (Media $record): void {
                 if (blank($record->ts_start)) {
                     // Defensa: nunca encolar un publish_clip sin ts.
