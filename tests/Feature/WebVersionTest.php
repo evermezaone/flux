@@ -38,4 +38,14 @@ class WebVersionTest extends TestCase
             ->assertOk()
             ->assertSee('FLUX v9.9.9');
     }
+
+    public function test_panel_no_registra_el_widget_de_version_de_filament(): void
+    {
+        // El FilamentInfoWidget mostraba la version del framework (confuso). Ya no debe estar.
+        $panel = \Filament\Facades\Filament::getPanel('admin');
+        $this->assertNotContains(
+            \Filament\Widgets\FilamentInfoWidget::class,
+            $panel->getWidgets(),
+        );
+    }
 }
