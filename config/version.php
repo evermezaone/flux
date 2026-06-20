@@ -9,6 +9,6 @@
 return [
 
     // Version legible del panel web (semver).
-    'web' => (string) env('WEB_VERSION', '1.0.0'),
+    'web' => (string) env('WEB_VERSION', '1.0.1'),
 
 ];
