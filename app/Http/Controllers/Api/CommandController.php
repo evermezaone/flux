@@ -51,6 +51,7 @@ class CommandController extends Controller
             'params' => $params ?: null,
             'status' => 'pending',
         ]);
+        $command->logEvent('created'); // trazabilidad (REQ-0015)
 
         return response()->json(['ok' => true, 'id' => $command->id], 201);
     }
@@ -69,6 +70,10 @@ class CommandController extends Controller
         if ($pending->isNotEmpty()) {
             Command::whereIn('id', $pending->pluck('id'))
                 ->update(['status' => 'sent', 'picked_at' => now()]);
+            // Trazabilidad: marca cada comando como entregado al dispositivo (REQ-0015).
+            foreach ($pending as $c) {
+                $c->logEvent('sent');
+            }
         }
 
         return response()->json([
@@ -93,12 +98,16 @@ class CommandController extends Controller
 
         $data = $request->validate([
             'status' => ['required', 'in:done,failed'],
+            'result' => ['nullable', 'string', 'max:1000'], // detalle reportado por el dispositivo (REQ-0015)
         ]);
 
         $command->update([
             'status' => $data['status'],
             'done_at' => now(),
+            'result' => $data['result'] ?? null,
         ]);
+        // Trazabilidad: registra la respuesta del dispositivo con su detalle (REQ-0015).
+        $command->logEvent($data['status'], $data['result'] ?? null);
 
         return response()->json(['ok' => true]);
     }

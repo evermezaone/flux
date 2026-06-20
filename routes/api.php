@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AppVersionController;
 use App\Http\Controllers\Api\CommandController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\MediaController;
@@ -16,6 +17,9 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('v1')->group(function () {
+
+    // Manifiesto de version de la app (publico, sin auth): auto-update de VLS (REQ-0014).
+    Route::get('/app/latest', [AppVersionController::class, 'latest']);
 
     // Ingesta (app VialSense -> backend): requiere X-Device-Key + rate-limit por device (REQ-0009).
     Route::middleware(['device.key', 'throttle:ingesta'])->group(function () {
