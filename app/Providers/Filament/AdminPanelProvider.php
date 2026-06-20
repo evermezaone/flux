@@ -28,6 +28,13 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->brandName('FLUX')
+            // Version del panel visible en el footer (FLX REQ-0017).
+            ->renderHook(
+                'panels::footer',
+                fn (): string => '<div style="text-align:center;padding:6px 0;font-size:12px;opacity:.6">'
+                    .'FLUX v'.e(config('version.web')).'</div>',
+            )
             ->colors([
                 'primary' => Color::Amber,
             ])

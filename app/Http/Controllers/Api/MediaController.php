@@ -81,7 +81,8 @@ class MediaController extends Controller
                 'available' => true,
             ]
         );
-        $media->update(['url' => "/api/v1/media/{$media->id}/download"]);
+        // URL absoluta que respeta el subdirectorio del despliegue (/flux), via route nombrada (REQ-0016).
+        $media->update(['url' => route('media.download', $media)]);
 
         return response()->json(['ok' => true, 'id' => $media->id, 'url' => $media->url]);
     }

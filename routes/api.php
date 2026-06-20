@@ -21,6 +21,9 @@ Route::prefix('v1')->group(function () {
     // Manifiesto de version de la app (publico, sin auth): auto-update de VLS (REQ-0014).
     Route::get('/app/latest', [AppVersionController::class, 'latest']);
 
+    // Version del panel/web FLX (publico): verificar el deploy (REQ-0017).
+    Route::get('/version', [AppVersionController::class, 'web']);
+
     // Ingesta (app VialSense -> backend): requiere X-Device-Key + rate-limit por device (REQ-0009).
     Route::middleware(['device.key', 'throttle:ingesta'])->group(function () {
         // Prueba de autenticacion del dispositivo (REQ-0002).
@@ -55,8 +58,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/telemetry', [TelemetryQueryController::class, 'index']);
         Route::get('/summary', [TelemetryQueryController::class, 'summary']);
 
-        // Descarga de clip subido (REQ-0008).
-        Route::get('/media/{media}/download', [MediaController::class, 'download']);
+        // Descarga de clip subido (REQ-0008). Nombrada para generar URLs con base path (REQ-0016).
+        Route::get('/media/{media}/download', [MediaController::class, 'download'])->name('media.download');
     });
 
 });

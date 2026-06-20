@@ -21,4 +21,16 @@ class AppVersionController extends Controller
             'notes' => (string) config('app_release.notes'),
         ]);
     }
+
+    /**
+     * Version del panel/web FLX (FLX REQ-0017). Publico: sirve para verificar que version
+     * del backend esta desplegada.
+     */
+    public function web(): JsonResponse
+    {
+        return response()->json([
+            'app' => 'FLX',
+            'web_version' => (string) config('version.web'),
+        ]);
+    }
 }

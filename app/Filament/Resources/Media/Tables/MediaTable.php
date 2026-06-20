@@ -38,7 +38,8 @@ class MediaTable
                 Action::make('descargar')
                     ->label('Descargar')
                     ->icon(Heroicon::OutlinedArrowDownTray)
-                    ->url(fn (Media $record): ?string => $record->url)
+                    // route() respeta el subdirectorio /flux y corrige urls viejas root-relative (REQ-0016).
+                    ->url(fn (Media $record): ?string => filled($record->url) ? route('media.download', $record) : null)
                     ->openUrlInNewTab()
                     ->visible(fn (Media $record): bool => filled($record->url)),
             ])

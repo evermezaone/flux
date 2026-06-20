@@ -50,6 +50,11 @@ class MediaUploadTest extends TestCase
         $this->assertTrue((bool) $media->available);
         $this->assertNotNull($media->url);
         $this->assertSame('20260619_1830.mp4', $media->file);
+        // REQ-0016: la url se genera con route() (absoluta, respeta el subdirectorio del deploy),
+        // no como path root-relative.
+        $this->assertSame(route('media.download', $media), $media->url);
+        $this->assertStringContainsString("/api/v1/media/{$media->id}/download", $media->url);
+        $this->assertStringStartsWith('http', $media->url);
     }
 
     public function test_upload_rechaza_tipo_no_permitido(): void
