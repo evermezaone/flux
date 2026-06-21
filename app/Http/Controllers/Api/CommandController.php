@@ -17,7 +17,7 @@ use Illuminate\Validation\Rule;
  */
 class CommandController extends Controller
 {
-    private const ALLOWED = ['snapshot', 'publish_clip', 'publish_timelapse', 'delete_clip', 'delete_all', 'config_update'];
+    private const ALLOWED = ['snapshot', 'publish_clip', 'publish_timelapse', 'delete_clip', 'delete_all', 'config_update', 'restart'];
 
     /** Operador (panel) encola un comando. Auth de operador (sesion). */
     public function enqueue(Request $request): JsonResponse
@@ -43,6 +43,10 @@ class CommandController extends Controller
         }
         if ($data['cmd'] === 'delete_clip' && empty($params['file'])) {
             return response()->json(['ok' => false, 'error' => 'delete_clip requiere params.file'], 422);
+        }
+        // Obs 171: validar el nivel de restart (la app solo entiende service|app|device).
+        if ($data['cmd'] === 'restart' && ! in_array($params['level'] ?? null, ['service', 'app', 'device'], true)) {
+            return response()->json(['ok' => false, 'error' => 'restart requiere params.level: service|app|device'], 422);
         }
 
         $command = Command::create([

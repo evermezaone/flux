@@ -2,10 +2,16 @@
 
 namespace App\Filament\Resources\Telemetry\Tables;
 
+use App\Models\Device;
 use App\Models\Site;
+use App\Models\Telemetry;
+use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Tabla de telemetria (FLX REQ-0023): registros enviados, mas recientes primero.
@@ -49,12 +55,55 @@ class TelemetryTable
                 SelectFilter::make('site_id')
                     ->label('Cruce')
                     ->options(fn () => Site::orderBy('code')->pluck('code', 'id')),
+                SelectFilter::make('device_id')
+                    ->label('Dispositivo')
+                    ->options(fn () => Device::orderBy('code')->pluck('code', 'id')),
                 SelectFilter::make('congestion')->label('Congestión')->options([
                     'low' => 'low',
                     'med' => 'med',
                     'high' => 'high',
                     'saturated' => 'saturated',
                 ]),
+                SelectFilter::make('zone')
+                    ->label('Zona')
+                    ->options(fn () => self::distinctValues('zone')),
+                SelectFilter::make('decision')
+                    ->label('Decisión')
+                    ->options(fn () => self::distinctValues('decision')),
+                // Rango de fechas sobre ts (desde/hasta inclusive) (REQ-0024).
+                Filter::make('ts_range')
+                    ->label('Rango de fechas')
+                    ->schema([
+                        DatePicker::make('desde')->label('Desde'),
+                        DatePicker::make('hasta')->label('Hasta'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when($data['desde'] ?? null, fn (Builder $q, $d): Builder => $q->whereDate('ts', '>=', $d))
+                            ->when($data['hasta'] ?? null, fn (Builder $q, $h): Builder => $q->whereDate('ts', '<=', $h));
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $out = [];
+                        if ($data['desde'] ?? null) {
+                            $out[] = Indicator::make('Desde ' . $data['desde'])->removeField('desde');
+                        }
+                        if ($data['hasta'] ?? null) {
+                            $out[] = Indicator::make('Hasta ' . $data['hasta'])->removeField('hasta');
+                        }
+
+                        return $out;
+                    }),
             ]);
+    }
+
+    /** Valores distintos no nulos de una columna, como opciones value=>value para un SelectFilter. */
+    private static function distinctValues(string $column): array
+    {
+        return Telemetry::query()
+            ->whereNotNull($column)
+            ->distinct()
+            ->orderBy($column)
+            ->pluck($column, $column)
+            ->all();
     }
 }

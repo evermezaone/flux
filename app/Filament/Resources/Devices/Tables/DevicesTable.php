@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Devices\Tables;
 
+use App\Filament\Actions\PushDeviceAction;
+use App\Filament\Actions\RestartDeviceAction;
 use App\Models\Command;
 use App\Models\Device;
 use Filament\Actions\Action;
@@ -41,6 +43,10 @@ class DevicesTable
             ])
             ->recordActions([
                 self::commandAction(),
+                // REQ-0027: reiniciar el equipo (service/app/device) via la cola.
+                RestartDeviceAction::make(fn (Device $record): Device => $record),
+                // REQ-0028: despertar el equipo por push FCM (ping/restart).
+                PushDeviceAction::make(fn (Device $record): Device => $record),
                 EditAction::make(),
             ])
             ->toolbarActions([

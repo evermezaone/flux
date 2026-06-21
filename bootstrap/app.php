@@ -20,6 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'device.key' => \App\Http\Middleware\EnsureDeviceKey::class,
+            // REQ-0029: verificacion de Firebase App Check (endurecimiento de la ingesta).
+            'appcheck' => \App\Http\Middleware\VerifyFirebaseAppCheck::class,
         ]);
         // Invitados (navegador) al login del panel; las peticiones JSON reciben 401.
         $middleware->redirectGuestsTo(fn () => '/admin/login');
