@@ -31,6 +31,10 @@
         <env name="ADMIN_PASSWORD" value=""/>
         <!-- Limite bajo para poder ejercitar el rate-limit en tests. -->
         <env name="INGESTA_RATE_LIMIT" value="3"/>
+        <!-- FLX-0037: sin fuente de manifiesto OTA por archivo/HTTP en tests (evita red); los tests
+             que ejercitan esas ramas las setean explicitamente con Http::fake/config. -->
+        <env name="APP_RELEASE_MANIFEST_PATH" value=""/>
+        <env name="APP_RELEASE_MANIFEST_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

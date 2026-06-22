@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\AppReleaseResolver;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -12,14 +13,18 @@ use Illuminate\Http\JsonResponse;
  */
 class AppVersionController extends Controller
 {
-    public function latest(): JsonResponse
+    public function latest(AppReleaseResolver $resolver): JsonResponse
     {
+        // FLX-0037: resuelve en cadena latest.json (archivo -> HTTP -> .env). El cuerpo mantiene las
+        // mismas 4 claves del contrato (la app ignora extras); el origen va en un header de diagnostico.
+        $m = $resolver->resolve();
+
         return response()->json([
-            'version_code' => (int) config('app_release.version_code'),
-            'version_name' => (string) config('app_release.version_name'),
-            'apk_url' => (string) config('app_release.apk_url'),
-            'notes' => (string) config('app_release.notes'),
-        ]);
+            'version_code' => (int) $m['version_code'],
+            'version_name' => (string) $m['version_name'],
+            'apk_url' => (string) $m['apk_url'],
+            'notes' => (string) $m['notes'],
+        ])->header('X-Release-Source', (string) ($m['source'] ?? 'env'));
     }
 
     /**
