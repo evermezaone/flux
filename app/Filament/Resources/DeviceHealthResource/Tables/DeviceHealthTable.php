@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\DeviceHealthResource\Tables;
 
+use App\Filament\Actions\MaintenanceDeviceAction;
 use App\Filament\Actions\PushDeviceAction;
 use App\Filament\Actions\RestartDeviceAction;
 use App\Models\DeviceHealth;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -59,12 +61,39 @@ class DeviceHealthTable
                     ->label('Último reinicio')
                     ->state(fn (DeviceHealth $r): string => self::lastRestart($r))
                     ->toggleable(),
+
+                // REQ-0031: supervivencia del equipo dedicado.
+                IconColumn::make('requires_intervention')
+                    ->label('Requiere interv.')
+                    ->boolean()
+                    ->state(fn (DeviceHealth $r): bool => (bool) ($r->device_metrics['requires_intervention'] ?? false)),
+                TextColumn::make('sentinel')
+                    ->label('Sentinel')
+                    ->state(fn (DeviceHealth $r): string => self::sentinel($r))
+                    ->wrap()
+                    ->toggleable(),
+                TextColumn::make('device_owner')
+                    ->label('Device Owner / Kiosk')
+                    ->state(fn (DeviceHealth $r): string => self::deviceOwner($r))
+                    ->toggleable(),
+                TextColumn::make('recovery')
+                    ->label('Última recuperación')
+                    ->state(fn (DeviceHealth $r): string => self::recovery($r))
+                    ->wrap()
+                    ->toggleable(),
+                TextColumn::make('ultimo_crash')
+                    ->label('Último crash')
+                    ->state(fn (DeviceHealth $r): string => self::lastCrash($r))
+                    ->wrap()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->recordActions([
                 // REQ-0027: reiniciar directo desde el semaforo (el record es un DeviceHealth).
                 RestartDeviceAction::make(fn (DeviceHealth $record) => $record->device),
                 // REQ-0028: despertar por push FCM desde el semaforo (util si esta offline/colgado).
                 PushDeviceAction::make(fn (DeviceHealth $record) => $record->device),
+                // REQ-0031: mantenimiento (pausar auto-recuperacion / limpiar contadores).
+                MaintenanceDeviceAction::make(fn (DeviceHealth $record) => $record->device),
             ]);
     }
 
@@ -97,5 +126,62 @@ class DeviceHealthTable
         $ts = $lr['ts'] ?? '';
 
         return "{$level}/{$reason} · {$ok}" . ($ts ? " · {$ts}" : '');
+    }
+
+    /** Estado del VlsSentinel reportado en device_metrics.sentinel (REQ-0031/0034). */
+    private static function sentinel(DeviceHealth $r): string
+    {
+        $s = $r->device_metrics['sentinel'] ?? null;
+        if (! is_array($s)) {
+            return 'sin Sentinel';
+        }
+        $action = $s['last_sentinel_action'] ?? '—';
+        $h = $s['launch_count_hour'] ?? '0';
+        $d = $s['launch_count_day'] ?? '0';
+
+        return "vivo · relanzamientos h/d: {$h}/{$d} · {$action}";
+    }
+
+    /** Device Owner / kiosko (REQ-0031/0035). */
+    private static function deviceOwner(DeviceHealth $r): string
+    {
+        $o = $r->device_metrics['device_owner'] ?? null;
+        if (! is_array($o)) {
+            return '—';
+        }
+        $owner = ($o['device_owner_available'] ?? false) ? 'DO sí' : 'DO no';
+        $kiosk = ($o['kiosk_active'] ?? false) ? 'kiosk on' : 'kiosk off';
+        $reboot = ($o['reboot_available'] ?? false) ? 'reboot sí' : 'reboot no';
+
+        return "{$owner} · {$kiosk} · {$reboot}";
+    }
+
+    /** Ultima recuperacion del orquestador (REQ-0031/0036). */
+    private static function recovery(DeviceHealth $r): string
+    {
+        $rec = $r->device_metrics['recovery'] ?? null;
+        if (! is_array($rec)) {
+            return '—';
+        }
+        $h = $rec['recovery_count_hour'] ?? '0';
+        $d = $rec['recovery_count_day'] ?? '0';
+        $last = $rec['last_recovery_action'] ?? null;
+        $desc = is_array($last) ? (($last['source'] ?? '?') . '/' . ($last['level'] ?? '?') . ' · ' . ($last['result'] ?? '')) : '—';
+
+        return "h/d: {$h}/{$d} · {$desc}";
+    }
+
+    /** Ultimo crash (REQ-0031/0027). */
+    private static function lastCrash(DeviceHealth $r): string
+    {
+        $c = $r->device_metrics['last_crash'] ?? null;
+        if (! is_array($c)) {
+            return '—';
+        }
+        $summary = $c['summary'] ?? '?';
+        $ts = $c['ts'] ?? '';
+        $rc = $c['recent_count'] ?? null;
+
+        return $summary . ($rc !== null ? " (x{$rc}/h)" : '') . ($ts ? " · {$ts}" : '');
     }
 }
