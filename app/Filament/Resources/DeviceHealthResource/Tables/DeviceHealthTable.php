@@ -76,6 +76,12 @@ class DeviceHealthTable
                     ->label('Device Owner / Kiosk')
                     ->state(fn (DeviceHealth $r): string => self::deviceOwner($r))
                     ->toggleable(),
+                // VLS-0042: capacidades de reinicio separadas (app/service NO requieren Device Owner).
+                TextColumn::make('restart_caps')
+                    ->label('Reinicio disponible')
+                    ->state(fn (DeviceHealth $r): string => self::restartCaps($r))
+                    ->wrap()
+                    ->toggleable(),
                 TextColumn::make('recovery')
                     ->label('Última recuperación')
                     ->state(fn (DeviceHealth $r): string => self::recovery($r))
@@ -154,6 +160,34 @@ class DeviceHealthTable
         $reboot = ($o['reboot_available'] ?? false) ? 'reboot sí' : 'reboot no';
 
         return "{$owner} · {$kiosk} · {$reboot}";
+    }
+
+    /**
+     * VLS-0042: capacidades de reinicio SEPARADAS por nivel. El reinicio de APP no requiere Device Owner
+     * (solo alarmas exactas); solo el reboot del TELÉFONO requiere Device Owner.
+     */
+    private static function restartCaps(DeviceHealth $r): string
+    {
+        $caps = $r->device_metrics['restart_caps'] ?? null;
+        $owner = $r->device_metrics['device_owner'] ?? null;
+
+        if (! is_array($caps) && ! is_array($owner)) {
+            return '—';
+        }
+
+        // Obs 187: el estado de cada nivel se LEE del heartbeat (no se hardcodea). service desde
+        // restart_caps.service_restart_available; app desde app_restart_available; reboot desde device_owner.
+        $service = is_array($caps)
+            ? (($caps['service_restart_available'] ?? false) ? 'service sí' : 'service NO')
+            : 'service ?';
+        $app = is_array($caps)
+            ? (($caps['app_restart_available'] ?? false) ? 'app sí' : 'app NO (falta alarmas exactas)')
+            : 'app ?';
+        $reboot = is_array($owner)
+            ? (($owner['reboot_available'] ?? false) ? 'reboot sí' : 'reboot NO (sin Device Owner)')
+            : 'reboot ?';
+
+        return "{$service} · {$app} · {$reboot}";
     }
 
     /** Ultima recuperacion del orquestador (REQ-0031/0036). */

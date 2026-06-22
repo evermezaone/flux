@@ -61,7 +61,31 @@ class CommandController extends Controller
         ]);
         $command->logEvent('created'); // trazabilidad (REQ-0015)
 
-        return response()->json(['ok' => true, 'id' => $command->id], 201);
+        // FLX-0033 (canal directo, VLS-0041): si el equipo tiene token FCM, empujar el comando ya armado
+        // para ejecucion inmediata (ademas de quedar en la cola para el polling). Best-effort: si el push
+        // falla, el comando igual se ejecutara por polling. La app deduplica por id (CommandLog).
+        $pushed = $this->pushCommand($device, $command);
+
+        return response()->json(['ok' => true, 'id' => $command->id, 'pushed' => $pushed], 201);
+    }
+
+    /** Empuja el comando por FCM (segundo canal). Devuelve true si se envio. Best-effort. */
+    private function pushCommand(Device $device, Command $command): bool
+    {
+        if (blank($device->fcm_token)) {
+            return false;
+        }
+
+        try {
+            return app(\App\Services\Fcm\FcmSender::class)->send($device->fcm_token, [
+                'action' => 'command',
+                'command_id' => (string) $command->id,
+                'cmd' => (string) $command->cmd,
+                'params' => json_encode($command->params ?: (object) []),
+            ]);
+        } catch (\Throwable $e) {
+            return false; // el comando ya esta en la cola para el polling
+        }
     }
 
     /** Dispositivo retira sus comandos pendientes; quedan 'sent'. */

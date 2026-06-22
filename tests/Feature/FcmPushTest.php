@@ -105,4 +105,45 @@ class FcmPushTest extends TestCase
 
         $this->assertNull($d->refresh()->fcm_token);
     }
+
+    public function test_encolar_comando_empuja_por_fcm(): void
+    {
+        // FLX-0033 / VLS-0041: al encolar, si el equipo tiene token, el comando se empuja por FCM (canal directo).
+        $user = User::factory()->create();
+        $d = $this->device();
+        $d->forceFill(['fcm_token' => 'tok-cmd'])->save();
+
+        $mock = Mockery::mock(FcmSender::class);
+        $mock->shouldReceive('send')->once()
+            ->with('tok-cmd', Mockery::on(function ($p) {
+                return ($p['action'] ?? null) === 'command'
+                    && ($p['cmd'] ?? null) === 'restart'
+                    && isset($p['command_id'])
+                    && ($p['params'] ?? null) === json_encode(['level' => 'app']);
+            }))
+            ->andReturn(true);
+        $this->app->instance(FcmSender::class, $mock);
+
+        $this->actingAs($user)->postJson('/api/v1/commands', [
+            'device' => $d->code, 'cmd' => 'restart', 'params' => ['level' => 'app'],
+        ])->assertSuccessful()->assertJsonPath('pushed', true);
+
+        $this->assertDatabaseHas('commands', ['device_id' => $d->id, 'cmd' => 'restart']);
+    }
+
+    public function test_encolar_sin_token_no_empuja_pero_queda_en_cola(): void
+    {
+        $user = User::factory()->create();
+        $d = $this->device(); // sin token
+
+        $mock = Mockery::mock(FcmSender::class);
+        $mock->shouldNotReceive('send');
+        $this->app->instance(FcmSender::class, $mock);
+
+        $this->actingAs($user)->postJson('/api/v1/commands', [
+            'device' => $d->code, 'cmd' => 'clear_recovery',
+        ])->assertSuccessful()->assertJsonPath('pushed', false);
+
+        $this->assertDatabaseHas('commands', ['device_id' => $d->id, 'cmd' => 'clear_recovery']);
+    }
 }

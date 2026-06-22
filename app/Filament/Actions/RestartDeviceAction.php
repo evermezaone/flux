@@ -26,16 +26,18 @@ class RestartDeviceAction
             ->color('danger')
             ->requiresConfirmation()
             ->modalHeading('Reiniciar equipo')
-            ->modalDescription('Encola un reinicio. El nivel "Teléfono" requiere que el equipo sea Device Owner.')
+            ->modalDescription('Encola un reinicio. "Captura/servicio" y "App" NO requieren Device Owner. '
+                .'Solo "Teléfono" (reboot) requiere Device Owner + reinicio habilitado por config.')
             ->schema([
                 Select::make('level')
                     ->label('Nivel')
                     ->options([
-                        'service' => 'Captura / servicio (más liviano)',
-                        'app' => 'App completa',
-                        'device' => 'Teléfono (requiere Device Owner)',
+                        'service' => 'Captura / servicio — sin Device Owner',
+                        'app' => 'App completa — sin Device Owner (requiere alarmas exactas en el equipo)',
+                        'device' => 'Teléfono / reboot — requiere Device Owner',
                     ])
                     ->default('app')
+                    ->helperText('App = reinicia la aplicación (no el teléfono). Teléfono = reinicia el equipo entero (solo Device Owner).')
                     ->required(),
             ])
             ->action(function (array $data, $record) use ($deviceFrom): void {

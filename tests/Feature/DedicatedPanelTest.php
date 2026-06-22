@@ -90,4 +90,64 @@ class DedicatedPanelTest extends TestCase
         $this->assertNotNull($cmd);
         $this->assertTrue($cmd->params['enabled']);
     }
+
+    public function test_panel_distingue_reinicio_app_de_reboot(): void
+    {
+        // VLS-0042: el reinicio de APP NO depende de Device Owner (sí de alarmas exactas); solo el reboot
+        // del teléfono depende de Device Owner. El panel debe reflejar esa distinción.
+        $user = User::factory()->create();
+        $d = $this->device();
+        DeviceHealth::create([
+            'device_id' => $d->id, 'overall' => 'warn', 'reported_at' => now(),
+            'device_metrics' => [
+                'restart_caps' => ['service_restart_available' => true, 'app_restart_available' => false, 'exact_alarm_available' => false],
+                'device_owner' => ['device_owner_available' => false, 'reboot_available' => false],
+            ],
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(ListDeviceHealth::class)
+            ->assertOk()
+            ->assertSee('falta alarmas exactas') // app falla por alarmas exactas, NO por Device Owner
+            ->assertSee('sin Device Owner');      // reboot del teléfono sí falla por Device Owner
+    }
+
+    public function test_panel_app_disponible_sin_device_owner(): void
+    {
+        // app_restart_available=true aunque NO sea Device Owner: el reinicio de app no lo requiere.
+        $user = User::factory()->create();
+        $d = $this->device();
+        DeviceHealth::create([
+            'device_id' => $d->id, 'overall' => 'ok', 'reported_at' => now(),
+            'device_metrics' => [
+                'restart_caps' => ['service_restart_available' => true, 'app_restart_available' => true, 'exact_alarm_available' => true],
+                'device_owner' => ['device_owner_available' => false, 'reboot_available' => false],
+            ],
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(ListDeviceHealth::class)
+            ->assertOk()
+            ->assertDontSee('falta alarmas exactas') // app disponible: no muestra el fallo de alarmas
+            ->assertSee('sin Device Owner');          // reboot sí sigue NO sin Device Owner
+    }
+
+    public function test_panel_service_restart_no_se_hardcodea(): void
+    {
+        // Obs 187: el estado de "service" se LEE de restart_caps.service_restart_available (no hardcodeado).
+        $user = User::factory()->create();
+        $d = $this->device();
+        DeviceHealth::create([
+            'device_id' => $d->id, 'overall' => 'warn', 'reported_at' => now(),
+            'device_metrics' => [
+                'restart_caps' => ['service_restart_available' => false, 'app_restart_available' => false],
+                'device_owner' => ['reboot_available' => false],
+            ],
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(ListDeviceHealth::class)
+            ->assertOk()
+            ->assertSee('service NO'); // si VLS reporta service no disponible, el panel NO muestra "service sí"
+    }
 }
