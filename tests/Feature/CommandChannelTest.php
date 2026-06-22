@@ -74,6 +74,19 @@ class CommandChannelTest extends TestCase
         $this->assertCount(1, $res); // solo el 'poll', no el 'fcm'
     }
 
+    public function test_stop_all_se_encola(): void
+    {
+        // VLS-0052/FLX-0038: el kill-switch 'stop_all' es un comando valido (sin params) y se encola.
+        $user = User::factory()->create();
+        $d = $this->device(key: 'k-stop', code: 'tel-stop');
+
+        $this->actingAs($user)->postJson('/api/v1/commands', [
+            'device' => $d->code, 'cmd' => 'stop_all', 'channel' => 'poll',
+        ])->assertSuccessful()->assertJsonPath('channel', 'poll');
+
+        $this->assertDatabaseHas('commands', ['device_id' => $d->id, 'cmd' => 'stop_all', 'channel' => 'poll']);
+    }
+
     public function test_ack_guarda_exec_channel(): void
     {
         $d = $this->device(key: 'k-ack');

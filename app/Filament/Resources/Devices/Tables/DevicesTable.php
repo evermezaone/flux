@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Devices\Tables;
 
 use App\Filament\Actions\PushDeviceAction;
 use App\Filament\Actions\RestartDeviceAction;
+use App\Filament\Actions\StopAllDeviceAction;
 use App\Models\Command;
 use App\Models\Device;
 use Filament\Actions\Action;
@@ -47,6 +48,8 @@ class DevicesTable
                 RestartDeviceAction::make(fn (Device $record): Device => $record),
                 // REQ-0028: despertar el equipo por push FCM (ping/restart).
                 PushDeviceAction::make(fn (Device $record): Device => $record),
+                // VLS-0052/FLX-0038: kill-switch -> baja VLS + Sentinel.
+                StopAllDeviceAction::make(fn (Device $record): Device => $record),
                 EditAction::make(),
             ])
             ->toolbarActions([

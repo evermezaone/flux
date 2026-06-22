@@ -5,6 +5,7 @@ namespace App\Filament\Resources\DeviceHealthResource\Tables;
 use App\Filament\Actions\MaintenanceDeviceAction;
 use App\Filament\Actions\PushDeviceAction;
 use App\Filament\Actions\RestartDeviceAction;
+use App\Filament\Actions\StopAllDeviceAction;
 use App\Models\DeviceHealth;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -110,6 +111,8 @@ class DeviceHealthTable
                 RestartDeviceAction::make(fn (DeviceHealth $record) => $record->device),
                 // REQ-0028: despertar por push FCM desde el semaforo (util si esta offline/colgado).
                 PushDeviceAction::make(fn (DeviceHealth $record) => $record->device),
+                // VLS-0052/FLX-0038: kill-switch -> baja VLS + Sentinel.
+                StopAllDeviceAction::make(fn (DeviceHealth $record) => $record->device),
                 // REQ-0031: mantenimiento (pausar auto-recuperacion / limpiar contadores).
                 MaintenanceDeviceAction::make(fn (DeviceHealth $record) => $record->device),
             ]);

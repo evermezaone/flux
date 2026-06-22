@@ -17,7 +17,7 @@ use Illuminate\Validation\Rule;
  */
 class CommandController extends Controller
 {
-    private const ALLOWED = ['snapshot', 'publish_clip', 'publish_timelapse', 'delete_clip', 'delete_all', 'config_update', 'restart', 'clear_recovery', 'maintenance'];
+    private const ALLOWED = ['snapshot', 'publish_clip', 'publish_timelapse', 'delete_clip', 'delete_all', 'config_update', 'restart', 'clear_recovery', 'maintenance', 'stop_all'];
 
     /** Operador (panel) encola un comando. Auth de operador (sesion). */
     public function enqueue(Request $request): JsonResponse
