@@ -39,7 +39,8 @@ class FcmSender
      */
     public function send(string $token, array $data): bool
     {
-        $message = CloudMessage::withTarget('token', $token)
+        $message = CloudMessage::new()
+            ->withToken($token)
             ->withData($data)
             ->withAndroidConfig(AndroidConfig::fromArray(['priority' => 'high']));
 
