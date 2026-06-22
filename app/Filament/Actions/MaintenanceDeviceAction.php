@@ -34,6 +34,15 @@ class MaintenanceDeviceAction
                         'maintenance_off' => 'Salir de modo mantenimiento',
                     ])
                     ->required(),
+                Select::make('channel')
+                    ->label('Canal')
+                    ->options([
+                        'auto' => 'Auto (FCM + cola, sin duplicar)',
+                        'fcm' => 'Solo FCM (push instantáneo)',
+                        'poll' => 'Solo cola (al consultar comandos)',
+                    ])
+                    ->default('auto')
+                    ->required(),
             ])
             ->action(function (array $data, $record) use ($deviceFrom): void {
                 /** @var Device|null $device */
@@ -51,15 +60,11 @@ class MaintenanceDeviceAction
                     default => ['clear_recovery', null],
                 };
 
-                $command = Command::create([
-                    'device_id' => $device->id,
-                    'cmd' => $cmd,
-                    'params' => $params,
-                    'status' => 'pending',
-                ]);
-                $command->logEvent('created');
+                $channel = $data['channel'] ?? 'auto';
+                $res = app(\App\Services\CommandDispatcher::class)->dispatch($device, $cmd, $params, $channel);
+                $via = $channel === 'poll' ? 'cola (polling)' : ($res['pushed'] ? 'FCM enviado' : 'cola (sin push)');
 
-                Notification::make()->title("'{$data['op']}' encolado para {$device->code}")->success()->send();
+                Notification::make()->title("'{$data['op']}' encolado para {$device->code} — canal: {$channel} · {$via}")->success()->send();
             });
     }
 }

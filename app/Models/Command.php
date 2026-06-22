@@ -10,7 +10,7 @@ class Command extends Model
 {
     public const UPDATED_AT = null; // created_at + picked_at + done_at (sin updated_at)
 
-    protected $fillable = ['device_id', 'cmd', 'params', 'status', 'picked_at', 'done_at', 'result'];
+    protected $fillable = ['device_id', 'cmd', 'channel', 'params', 'status', 'picked_at', 'done_at', 'result', 'exec_channel'];
 
     protected $casts = [
         'params' => 'array',

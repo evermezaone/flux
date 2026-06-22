@@ -21,6 +21,27 @@ class CommandsTable
                 TextColumn::make('id')->label('#')->sortable(),
                 TextColumn::make('device.code')->label('Dispositivo')->searchable(),
                 TextColumn::make('cmd')->label('Comando')->badge()->searchable(),
+                // FLX-0035: canal solicitado al encolar (auto|fcm|poll).
+                TextColumn::make('channel')
+                    ->label('Canal pedido')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'fcm' => 'FCM (push)',
+                        'poll' => 'Polling',
+                        'auto' => 'Auto',
+                        default => $state ?? '-',
+                    })
+                    ->color('gray'),
+                // FLX-0035: canal REAL por el que se ejecutó (lo reporta el equipo en el ack).
+                TextColumn::make('exec_channel')
+                    ->label('Ejecutado por')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'fcm' => 'FCM (push)',
+                        'poll' => 'Polling',
+                        default => '—',
+                    })
+                    ->color(fn (?string $state): string => $state === 'fcm' ? 'warning' : ($state === 'poll' ? 'info' : 'gray')),
                 TextColumn::make('params')
                     ->label('Params')
                     ->formatStateUsing(fn ($state): string => filled($state) ? json_encode($state) : '-'),
@@ -33,7 +54,7 @@ class CommandsTable
                         'sent' => 'info',
                         default => 'gray',
                     }),
-                TextColumn::make('result')->label('Respuesta')->wrap()->placeholder('-'),
+                TextColumn::make('result')->label('Mensaje / error')->wrap()->placeholder('-'),
                 TextColumn::make('created_at')->label('Creado')->dateTime()->sortable(),
                 TextColumn::make('picked_at')->label('Entregado')->dateTime()->placeholder('-'),
                 TextColumn::make('done_at')->label('Respondido')->dateTime()->placeholder('-'),

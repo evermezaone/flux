@@ -150,4 +150,23 @@ class DedicatedPanelTest extends TestCase
             ->assertOk()
             ->assertSee('service NO'); // si VLS reporta service no disponible, el panel NO muestra "service sí"
     }
+
+    public function test_panel_distingue_foreground_background_desconocido(): void
+    {
+        // FLX-0035: 'al frente' vs 'vivo en background' vs 'desconocido' (APK vieja sin el campo).
+        $user = User::factory()->create();
+        $on = $this->device('k-fg1', 'fg-on');
+        $off = $this->device('k-fg2', 'fg-off');
+        $unk = $this->device('k-fg3', 'fg-unk');
+        DeviceHealth::create(['device_id' => $on->id, 'overall' => 'ok', 'reported_at' => now(), 'device_metrics' => ['app_foreground' => true]]);
+        DeviceHealth::create(['device_id' => $off->id, 'overall' => 'ok', 'reported_at' => now(), 'device_metrics' => ['app_foreground' => false]]);
+        DeviceHealth::create(['device_id' => $unk->id, 'overall' => 'ok', 'reported_at' => now(), 'device_metrics' => []]);
+
+        Livewire::actingAs($user)
+            ->test(ListDeviceHealth::class)
+            ->assertOk()
+            ->assertSee('al frente')        // Obs 194: app_foreground=true se muestra "al frente"
+            ->assertSee('no (background)')  // app_foreground=false: vivo en background
+            ->assertSee('desconocido');     // sin el campo: no rompe, muestra desconocido
+    }
 }

@@ -45,6 +45,18 @@ class DeviceHealthTable
                     ->state(fn (DeviceHealth $r): string => self::failingSubsystems($r))
                     ->wrap(),
 
+                // FLX-0035: distinguir VLS "al frente" de "vivo en background". health ok + background
+                // NO es una caida, pero el equipo dedicado no esta en modo operativo pleno.
+                TextColumn::make('app_foreground')
+                    ->label('VLS al frente')
+                    ->badge()
+                    ->state(fn (DeviceHealth $r): string => self::appForeground($r))
+                    ->color(fn (string $state): string => match ($state) {
+                        'al frente' => 'success',
+                        'no (background)' => 'warning',
+                        default => 'gray',
+                    }),
+
                 TextColumn::make('reported_at')
                     ->label('Último latido')
                     ->since()
@@ -101,6 +113,20 @@ class DeviceHealthTable
                 // REQ-0031: mantenimiento (pausar auto-recuperacion / limpiar contadores).
                 MaintenanceDeviceAction::make(fn (DeviceHealth $record) => $record->device),
             ]);
+    }
+
+    /**
+     * FLX-0035: estado de primer plano de VLS. 'sí' = al frente; 'no (background)' = vivo pero en
+     * background (no es caida); 'desconocido' = la APK no reporta el campo (version vieja).
+     */
+    private static function appForeground(DeviceHealth $r): string
+    {
+        $fg = $r->device_metrics['app_foreground'] ?? null;
+        if ($fg === null) {
+            return 'desconocido';
+        }
+
+        return $fg ? 'al frente' : 'no (background)';
     }
 
     /** Resumen de los subsistemas que no estan OK (para la columna). */

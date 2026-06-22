@@ -39,6 +39,16 @@ class RestartDeviceAction
                     ->default('app')
                     ->helperText('App = reinicia la aplicación (no el teléfono). Teléfono = reinicia el equipo entero (solo Device Owner).')
                     ->required(),
+                Select::make('channel')
+                    ->label('Canal')
+                    ->options([
+                        'auto' => 'Auto (FCM + cola, sin duplicar)',
+                        'fcm' => 'Solo FCM (push instantáneo)',
+                        'poll' => 'Solo cola (al consultar comandos)',
+                    ])
+                    ->default('auto')
+                    ->helperText('Por dónde se envía el comando. "Auto" usa push y cola con anti-duplicado.')
+                    ->required(),
             ])
             ->action(function (array $data, $record) use ($deviceFrom): void {
                 /** @var Device|null $device */
@@ -49,16 +59,13 @@ class RestartDeviceAction
                     return;
                 }
 
-                $command = Command::create([
-                    'device_id' => $device->id,
-                    'cmd' => 'restart',
-                    'params' => ['level' => $data['level']],
-                    'status' => 'pending',
-                ]);
-                $command->logEvent('created');
+                $channel = $data['channel'] ?? 'auto';
+                $res = app(\App\Services\CommandDispatcher::class)
+                    ->dispatch($device, 'restart', ['level' => $data['level']], $channel);
 
+                $via = $channel === 'poll' ? 'cola (polling)' : ($res['pushed'] ? 'FCM enviado' : 'cola (sin push)');
                 Notification::make()
-                    ->title("Reinicio ({$data['level']}) encolado para {$device->code}")
+                    ->title("Reinicio ({$data['level']}) encolado para {$device->code} — canal: {$channel} · {$via}")
                     ->success()
                     ->send();
             });
