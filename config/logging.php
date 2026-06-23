@@ -65,6 +65,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Traza dedicada de ingesta de telemetria (diagnostico): llegada, contenido y resultado.
+        // Se sigue con: tail -f storage/logs/telemetry.log
+        'telemetry' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/telemetry.log'),
+            'level' => 'debug',
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

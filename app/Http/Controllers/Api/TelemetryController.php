@@ -30,6 +30,16 @@ class TelemetryController extends Controller
             $records = [$payload];
         }
 
+        // Traza de llegada: prueba que la telemetria entro (paso auth) y QUE llego, antes de registrar.
+        $seqs = array_filter(array_map(fn ($r) => is_array($r) ? ($r['client_seq'] ?? null) : null, $records), fn ($s) => $s !== null);
+        Log::channel('telemetry')->info('RECIBIDO', [
+            'device' => $device->code,
+            'records' => count($records),
+            'client_seq' => $seqs ? (min($seqs).'..'.max($seqs)) : 'n/d',
+            'bytes' => strlen($request->getContent()),
+            'ip' => $request->ip(),
+        ]);
+
         $rows = [];
         $invalid = 0;
 
@@ -58,7 +68,7 @@ class TelemetryController extends Controller
 
             if ($v->fails()) {
                 // Loguea y sigue: un registro malo no frena el lote.
-                Log::warning('telemetry ingest: registro invalido', [
+                Log::channel('telemetry')->warning('REGISTRO INVALIDO (no se guarda)', [
                     'device' => $device->code,
                     'index' => $i,
                     'errors' => $v->errors()->all(),
@@ -95,11 +105,16 @@ class TelemetryController extends Controller
             $device->forceFill(['last_seen_at' => now()])->save();
         }
 
-        return response()->json([
+        $result = [
             'ok' => true,
             'accepted' => $accepted,
             'duplicated' => count($rows) - $accepted,
             'invalid' => $invalid,
-        ]);
+        ];
+
+        // Traza de resultado: cuantos se registraron / duplicados / invalidos.
+        Log::channel('telemetry')->info('RESULTADO', ['device' => $device->code] + $result);
+
+        return response()->json($result);
     }
 }
