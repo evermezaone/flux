@@ -91,6 +91,51 @@ class TelemetryIngestTest extends TestCase
             ->assertOk()->assertJson(['accepted' => 1, 'invalid' => 1]);
     }
 
+    public function test_mismo_client_seq_distinto_ts_no_se_descarta(): void
+    {
+        // FLX-0045: el bug que se arregla. Al reinstalar la app, client_seq reinicia y reusa numeros; con
+        // dedup por (device_id, client_seq) la segunda lectura se perdia. Ahora la clave es por contenido.
+        $this->device();
+        $a = $this->record(5);
+        $b = $this->record(5); // MISMO client_seq...
+        $b['ts'] = '2026-06-19T18:31:00-03:00'; // ...pero ts (y contenido) distinto
+
+        $this->postJson('/api/v1/telemetry', ['records' => [$a, $b]], ['X-Device-Key' => 'k-123'])
+            ->assertOk()->assertJson(['accepted' => 2, 'duplicated' => 0]);
+
+        $this->assertSame(2, \App\Models\Telemetry::count());
+    }
+
+    public function test_reintento_identico_deduplica(): void
+    {
+        // Idempotencia preservada: el mismo registro reenviado (red cortada) no se duplica.
+        $this->device();
+        $rec = $this->record(7);
+
+        $this->postJson('/api/v1/telemetry', $rec, ['X-Device-Key' => 'k-123'])
+            ->assertOk()->assertJson(['accepted' => 1]);
+        $this->postJson('/api/v1/telemetry', $rec, ['X-Device-Key' => 'k-123'])
+            ->assertOk()->assertJson(['accepted' => 0, 'duplicated' => 1]);
+
+        $this->assertSame(1, \App\Models\Telemetry::count());
+    }
+
+    public function test_client_hash_del_telefono_se_respeta(): void
+    {
+        // Si el telefono manda client_hash (VLS-0065), manda la clave: mismo hash -> dedup aunque cambie algo.
+        $this->device();
+        $a = $this->record(1);
+        $a['client_hash'] = str_repeat('a', 64);
+        $b = $this->record(2);          // distinto client_seq y ts...
+        $b['ts'] = '2026-06-19T19:00:00-03:00';
+        $b['client_hash'] = str_repeat('a', 64); // ...pero mismo hash declarado
+
+        $this->postJson('/api/v1/telemetry', ['records' => [$a, $b]], ['X-Device-Key' => 'k-123'])
+            ->assertOk()->assertJson(['accepted' => 1, 'duplicated' => 1]);
+
+        $this->assertSame(1, \App\Models\Telemetry::count());
+    }
+
     public function test_media_upsert_por_file(): void
     {
         $this->device();

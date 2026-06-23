@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
  * Telemetria sintetica para probar el panel sin la app (REQ-0007).
  * Genera ~1 semana de datos cada 10 min, con el patron de migracion de fin de semana
  * (pico saliente viernes/sabado por la tarde, entrante domingo). Idempotente: insertOrIgnore
- * por (device_id, client_seq), asi re-correr no duplica.
+ * por (device_id, client_hash) (FLX-0045), asi re-correr no duplica.
  */
 class TelemetrySeeder extends Seeder
 {
@@ -54,6 +54,9 @@ class TelemetrySeeder extends Seeder
                 'site_id' => $site->id,
                 'ts' => $cursor->toDateTimeString(),
                 'client_seq' => $seq,
+                // FLX-0045: idempotencia por (device_id, client_hash). Hash estable por (device, seq) para
+                // que re-correr el seeder no duplique aunque las metricas aleatorias cambien.
+                'client_hash' => hash('sha256', $device->id.':'.$seq),
                 'zone' => 'CROSS',
                 'occupancy' => $occ,
                 'queue_len_m' => round($occ * 6.5, 2),
