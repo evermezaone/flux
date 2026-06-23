@@ -26,6 +26,13 @@ class CommandDispatcher
      */
     public function dispatch(Device $device, string $cmd, ?array $params, string $channel = 'auto'): array
     {
+        // FLX-0040: el reinicio de TELEFONO (level=device) es destructivo y se usa cuando el equipo esta
+        // trabado (no consulta la cola). Forzar FCM puro (no auto, no poll): el polling NO entrega los
+        // comandos de canal 'fcm', asi un reboot no queda pendiente en cola y NO se re-ejecuta post-reboot.
+        if ($cmd === 'restart' && ($params['level'] ?? null) === 'device') {
+            $channel = 'fcm';
+        }
+
         $command = Command::create([
             'device_id' => $device->id,
             'cmd' => $cmd,

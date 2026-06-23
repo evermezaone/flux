@@ -10,12 +10,13 @@ class Device extends Model
 {
     public const UPDATED_AT = null; // la tabla solo tiene created_at
 
-    protected $fillable = ['site_id', 'code', 'device_key', 'model', 'last_seen_at', 'active', 'fcm_token', 'fcm_token_at'];
+    protected $fillable = ['site_id', 'code', 'device_key', 'model', 'install_date', 'power_source', 'last_seen_at', 'active', 'fcm_token', 'fcm_token_at'];
 
     protected $casts = [
         'last_seen_at' => 'datetime',
         'active' => 'boolean',
         'fcm_token_at' => 'datetime',
+        'install_date' => 'date', // FLX-0043
     ];
 
     protected $hidden = ['device_key', 'fcm_token']; // no exponer tokens en respuestas
@@ -44,5 +45,17 @@ class Device extends Model
     public function health(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(DeviceHealth::class);
+    }
+
+    /** Estado del supervisor remoto (FLX-0041). */
+    public function supervision(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(DeviceSupervision::class);
+    }
+
+    /** Estado de prerequisitos operativos (FLX-0044). */
+    public function requirementState(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(DeviceRequirementState::class);
     }
 }

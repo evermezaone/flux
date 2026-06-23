@@ -14,6 +14,10 @@ Schedule::command('telemetry:purge')->dailyAt('03:00');
 // Alertas de salud de equipos (REQ-0026): caidos/fail -> email; recuperacion -> email. Cada 5 min.
 Schedule::command('health:check-alerts')->everyFiveMinutes();
 
+// FLX-0041: supervisor remoto industrial. Cada minuto evalua ausencia de heartbeat y escala acciones
+// (con anti-tormenta). Las autoacciones son opt-in por equipo (supervise_enabled).
+Schedule::command('devices:supervise')->everyMinute()->withoutOverlapping();
+
 // Reinicio preventivo programado (REQ-0027): solo si esta habilitado por config, a la hora elegida.
 if (config('health.restart.daily_enabled')) {
     Schedule::command('devices:restart-scheduled')

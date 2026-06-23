@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\DeviceHealthResource\Tables;
 
+use App\Filament\Actions\DiagnosticDeviceAction;
+use App\Filament\Actions\LogsDeviceActions;
 use App\Filament\Actions\MaintenanceDeviceAction;
 use App\Filament\Actions\PushDeviceAction;
 use App\Filament\Actions\RestartDeviceAction;
@@ -105,6 +107,29 @@ class DeviceHealthTable
                     ->state(fn (DeviceHealth $r): string => self::lastCrash($r))
                     ->wrap()
                     ->toggleable(isToggledHiddenByDefault: true),
+                // FLX-0042: indicadores industriales (perfil, keyguard, SLA foreground, permisos criticos).
+                // Se completan cuando el equipo los reporta (VLS-0057/0058/0060); graceful si faltan.
+                TextColumn::make('industrial')
+                    ->label('Diagnóstico industrial')
+                    ->state(fn (DeviceHealth $r): string => self::industrial($r))
+                    ->wrap()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                // FLX-0044: prerequisitos operativos (de operational_requirements). Alerta visible con color.
+                TextColumn::make('prerequisitos')
+                    ->label('Prerequisitos')
+                    ->state(fn (DeviceHealth $r): string => self::requirements($r))
+                    ->badge()
+                    ->color(fn (DeviceHealth $r): string => self::requirementsSeverity($r))
+                    ->wrap(),
+                // FLX-0043: energia (bateria vs umbrales) + mantenimiento (edad + revision/reemplazo).
+                // Codex: color por severidad para que la alerta sea visible sin leer todo el texto.
+                TextColumn::make('mantenimiento')
+                    ->label('Energía / mantenimiento')
+                    ->state(fn (DeviceHealth $r): string => self::maintenance($r))
+                    ->badge()
+                    ->color(fn (DeviceHealth $r): string => self::maintenanceSeverity($r))
+                    ->wrap()
+                    ->toggleable(),
             ])
             ->recordActions([
                 // REQ-0027: reiniciar directo desde el semaforo (el record es un DeviceHealth).
@@ -113,6 +138,12 @@ class DeviceHealthTable
                 PushDeviceAction::make(fn (DeviceHealth $record) => $record->device),
                 // VLS-0052/FLX-0038: kill-switch -> baja VLS + Sentinel.
                 StopAllDeviceAction::make(fn (DeviceHealth $record) => $record->device),
+                // FLX-0042: diagnostico industrial extendido.
+                DiagnosticDeviceAction::make(fn (DeviceHealth $record) => $record->device),
+                // FLX-0039: logs de campo.
+                LogsDeviceActions::requestLogs(fn (DeviceHealth $record) => $record->device),
+                LogsDeviceActions::clearLogs(fn (DeviceHealth $record) => $record->device),
+                LogsDeviceActions::downloadLatest(fn (DeviceHealth $record) => $record->device),
                 // REQ-0031: mantenimiento (pausar auto-recuperacion / limpiar contadores).
                 MaintenanceDeviceAction::make(fn (DeviceHealth $record) => $record->device),
             ]);
@@ -246,5 +277,155 @@ class DeviceHealthTable
         $rc = $c['recent_count'] ?? null;
 
         return $summary . ($rc !== null ? " (x{$rc}/h)" : '') . ($ts ? " · {$ts}" : '');
+    }
+
+    /**
+     * FLX-0042: indicadores industriales del heartbeat (perfil, keyguard, SLA foreground, permisos
+     * criticos). Graceful: muestra solo lo que el equipo reporta (VLS-0057/0058/0060); '—' si nada.
+     * Publico para test focalizado. `industrial_profile` puede venir como BLOQUE (VLS-0058) o bool/string.
+     */
+    public static function industrial(DeviceHealth $r): string
+    {
+        $m = $r->device_metrics ?? [];
+        $parts = [];
+
+        if (array_key_exists('industrial_profile', $m)) {
+            $ip = $m['industrial_profile'];
+            if (is_array($ip)) {
+                // VLS-0058: bloque de estado del perfil industrial -> render compacto de los campos clave.
+                $flags = [];
+                foreach ([
+                    'device_owner' => 'DO',
+                    'keyguard_disabled' => 'keyguard off',
+                    'lock_task_permitted' => 'lock-task ok',
+                    'lock_task_active' => 'kiosk activo',
+                    'install_restrictions_applied' => 'install restringido',
+                    'unknown_sources_restricted' => 'orígenes desc. restringidos',
+                ] as $key => $label) {
+                    if (array_key_exists($key, $ip)) {
+                        $flags[] = $label.': '.($ip[$key] ? 'sí' : 'no');
+                    }
+                }
+                $perfil = empty($flags) ? '?' : implode(', ', $flags);
+                if (! empty($ip['profile_last_error'])) {
+                    $perfil .= ' · error: '.$ip['profile_last_error'];
+                }
+                $parts[] = 'perfil: '.$perfil;
+            } else {
+                // Compat con versiones viejas que reportaran bool/string.
+                $parts[] = 'perfil: '.(is_bool($ip) ? ($ip ? 'sí' : 'no') : (string) $ip);
+            }
+        }
+        if (array_key_exists('keyguard_locked', $m)) {
+            $parts[] = 'keyguard: '.($m['keyguard_locked'] ? 'bloqueado' : 'desbloqueado');
+        }
+        if (is_array($m['foreground_sla'] ?? null)) {
+            $sla = $m['foreground_sla'];
+            $met = $sla['met'] ?? ($sla['ok'] ?? null);
+            $secs = $sla['seconds_since_not_foreground'] ?? null;
+            $reason = $sla['last_foreground_failure_reason'] ?? null;
+            $parts[] = 'foreground SLA: '.($met === null ? '—' : ($met ? 'OK' : 'fuera'))
+                .($secs !== null && $secs >= 0 ? " ({$secs}s sin frente)" : '')
+                .(! $met && ! empty($reason) ? " · {$reason}" : '');
+        }
+        if (is_array($m['permissions'] ?? null)) {
+            $missing = array_keys(array_filter($m['permissions'], static fn ($v) => $v === false || $v === 'false' || $v === 0 || $v === '0'));
+            $parts[] = empty($missing) ? 'permisos: OK' : 'permisos faltan: '.implode(', ', $missing);
+        }
+
+        return empty($parts) ? '—' : implode(' · ', $parts);
+    }
+
+    /** FLX-0043: energia (bateria vs umbrales) + mantenimiento (edad operativa + recomendacion). */
+    private static function maintenance(DeviceHealth $r): string
+    {
+        $device = $r->device;
+        if (! $device) {
+            return '—';
+        }
+        $svc = app(\App\Services\MaintenanceService::class);
+        $e = $svc->energyState($device);
+        $rec = $svc->recommendation($device);
+
+        $parts = [];
+        if ($e['battery_pct'] !== null) {
+            $parts[] = "batería {$e['battery_pct']}% ({$e['level']})";
+        }
+        if ($e['temp_alert']) {
+            $parts[] = "temp alta ({$e['temp_c']}°)";
+        }
+        if ($device->power_source) {
+            $parts[] = "fuente: {$device->power_source}";
+        }
+        if ($rec['age_months'] !== null) {
+            $parts[] = "edad: {$rec['age_months']}m";
+        }
+        if (in_array($rec['status'], ['revision', 'reemplazo'], true)) {
+            $parts[] = $rec['text'];
+        }
+
+        return empty($parts) ? '—' : implode(' · ', $parts);
+    }
+
+    /** FLX-0044: resumen de prerequisitos operativos (estado + fallos + ultima recuperacion). */
+    private static function requirements(DeviceHealth $r): string
+    {
+        $st = $r->device?->requirementState;
+        if (! $st) {
+            return '—';
+        }
+        if ($st->ok && $st->warning_count === 0) {
+            $s = 'OK';
+        } else {
+            $parts = [];
+            if ($st->critical_count > 0) {
+                $parts[] = "{$st->critical_count} crítico(s)";
+            }
+            if ($st->warning_count > 0) {
+                $parts[] = "{$st->warning_count} warning(s)";
+            }
+            $failed = collect($st->failures ?? [])->pluck('check')->implode(', ');
+            $s = implode(' · ', $parts).($failed ? " · {$failed}" : '');
+        }
+        if ($st->last_recovery_at) {
+            $s .= ' · últ. recup.: '.$st->last_recovery_at->diffForHumans();
+        }
+
+        return $s;
+    }
+
+    /** FLX-0044: severidad de la columna de prerequisitos para color/badge. */
+    public static function requirementsSeverity(DeviceHealth $r): string
+    {
+        $st = $r->device?->requirementState;
+        if (! $st) {
+            return 'gray';
+        }
+        if ($st->critical_count > 0) {
+            return 'danger';
+        }
+
+        return $st->warning_count > 0 ? 'warning' : 'success';
+    }
+
+    /** FLX-0043 (Codex): severidad de la columna de mantenimiento para color/badge. */
+    public static function maintenanceSeverity(DeviceHealth $r): string
+    {
+        $device = $r->device;
+        if (! $device) {
+            return 'gray';
+        }
+        $svc = app(\App\Services\MaintenanceService::class);
+        $e = $svc->energyState($device);
+        $rec = $svc->recommendation($device);
+
+        if (in_array($e['level'], ['critical', 'shutdown'], true) || $e['temp_alert'] || $rec['status'] === 'reemplazo') {
+            return 'danger';
+        }
+        if ($e['level'] === 'warning' || $rec['status'] === 'revision') {
+            return 'warning';
+        }
+
+        return 'gray';
     }
 }

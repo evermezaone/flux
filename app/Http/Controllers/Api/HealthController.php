@@ -48,6 +48,14 @@ class HealthController extends Controller
 
         $device->forceFill(['last_seen_at' => now()])->save();
 
+        // FLX-0044: evaluar prerequisitos operativos (device.operational_requirements) y persistir alertas
+        // con anti-tormenta (solo cambios). Best-effort: no debe romper la ingesta del heartbeat.
+        try {
+            app(\App\Services\RequirementsMonitor::class)->evaluate($device->fresh('health'));
+        } catch (\Throwable $e) {
+            // se ignora: el heartbeat ya quedo persistido
+        }
+
         return response()->json(['ok' => true, 'device' => $device->code, 'overall' => $data['overall']]);
     }
 

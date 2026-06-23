@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AppVersionController;
 use App\Http\Controllers\Api\CommandController;
 use App\Http\Controllers\Api\ConfigController;
+use App\Http\Controllers\Api\DeviceLogController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\FcmController;
 use App\Http\Controllers\Api\HealthController;
@@ -65,6 +66,9 @@ Route::prefix('v1')->group(function () {
 
         // Registro del token FCM del equipo (REQ-0028; emisor VLS-0025).
         Route::post('/fcm-token', [FcmController::class, 'registerToken']);
+
+        // FLX-0039: el equipo sube su paquete de logs (emisor VLS-0054, comando get_logs).
+        Route::post('/device-logs', [DeviceLogController::class, 'store']);
     });
 
     // Lado operador/panel. Auth de operador (sesion).

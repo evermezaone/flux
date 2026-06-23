@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Devices\Tables;
 
+use App\Filament\Actions\DiagnosticDeviceAction;
+use App\Filament\Actions\LogsDeviceActions;
 use App\Filament\Actions\PushDeviceAction;
 use App\Filament\Actions\RestartDeviceAction;
 use App\Filament\Actions\StopAllDeviceAction;
@@ -41,6 +43,30 @@ class DevicesTable
                 IconColumn::make('active')
                     ->label('Activo')
                     ->boolean(),
+                // FLX-0041: estado del supervisor remoto + por que (que accion se intento).
+                TextColumn::make('supervision.state')
+                    ->label('Supervisor')
+                    ->badge()
+                    ->placeholder('—')
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'requiere_intervencion' => 'requiere intervención',
+                        'sin_metricas' => 'sin métricas',
+                        default => (string) ($state ?? '—'),
+                    })
+                    ->color(fn (?string $state): string => match ($state) {
+                        'online' => 'success',
+                        'degradado', 'sin_metricas', 'recuperando' => 'warning',
+                        'requiere_intervencion' => 'danger',
+                        default => 'gray',
+                    }),
+                TextColumn::make('supervision.reason')
+                    ->label('Supervisor: motivo / última acción')
+                    ->placeholder('—')
+                    ->wrap()
+                    ->formatStateUsing(fn (?string $state, $record): string => trim(
+                        ($record->supervision?->last_action ? $record->supervision->last_action.' · ' : '').((string) ($state ?? ''))
+                    ))
+                    ->toggleable(),
             ])
             ->recordActions([
                 self::commandAction(),
@@ -50,6 +76,12 @@ class DevicesTable
                 PushDeviceAction::make(fn (Device $record): Device => $record),
                 // VLS-0052/FLX-0038: kill-switch -> baja VLS + Sentinel.
                 StopAllDeviceAction::make(fn (Device $record): Device => $record),
+                // FLX-0042: diagnostico industrial extendido (get_status/battery/network/...).
+                DiagnosticDeviceAction::make(fn (Device $record): Device => $record),
+                // FLX-0039: logs de campo -> solicitar / limpiar / descargar el ultimo.
+                LogsDeviceActions::requestLogs(fn (Device $record): Device => $record),
+                LogsDeviceActions::clearLogs(fn (Device $record): Device => $record),
+                LogsDeviceActions::downloadLatest(fn (Device $record): Device => $record),
                 EditAction::make(),
             ])
             ->toolbarActions([

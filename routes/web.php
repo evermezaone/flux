@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\DeviceLogController;
 use App\Http\Controllers\Api\MediaController;
 use Illuminate\Support\Facades\Route;
 
@@ -14,4 +15,8 @@ Route::middleware('auth')->group(function () {
         ->name('media.download');
     Route::get('/api/v1/media/{media}/view', [MediaController::class, 'view'])
         ->name('media.view');
+
+    // FLX-0039: descarga de un paquete de logs del equipo por el operador (storage privado).
+    Route::get('/api/v1/device-logs/{deviceLog}/download', [DeviceLogController::class, 'download'])
+        ->name('device-logs.download');
 });

@@ -27,7 +27,9 @@ class RestartDeviceAction
             ->requiresConfirmation()
             ->modalHeading('Reiniciar equipo')
             ->modalDescription('Encola un reinicio. "Captura/servicio" y "App" NO requieren Device Owner. '
-                .'Solo "Teléfono" (reboot) requiere Device Owner + reinicio habilitado por config.')
+                .'Solo "Teléfono" (reboot) requiere Device Owner + reinicio habilitado por config. '
+                .'IMPORTANTE: el reinicio de "Teléfono" se envía SIEMPRE por FCM (el polling NO recupera '
+                .'un equipo trabado), y no queda pendiente en cola para no re-ejecutarse tras el reboot.')
             ->schema([
                 Select::make('level')
                     ->label('Nivel')
@@ -47,7 +49,9 @@ class RestartDeviceAction
                         'poll' => 'Solo cola (al consultar comandos)',
                     ])
                     ->default('auto')
-                    ->helperText('Por dónde se envía el comando. "Auto" usa push y cola con anti-duplicado.')
+                    ->helperText('Por dónde se envía el comando (para App/Servicio). "Auto" usa push y cola '
+                        .'con anti-duplicado. Nota: para "Teléfono" (reboot) se fuerza FCM y se ignora esta '
+                        .'selección — el polling no sirve para un equipo trabado.')
                     ->required(),
             ])
             ->action(function (array $data, $record) use ($deviceFrom): void {
@@ -59,10 +63,11 @@ class RestartDeviceAction
                     return;
                 }
 
-                $channel = $data['channel'] ?? 'auto';
                 $res = app(\App\Services\CommandDispatcher::class)
-                    ->dispatch($device, 'restart', ['level' => $data['level']], $channel);
+                    ->dispatch($device, 'restart', ['level' => $data['level']], $data['channel'] ?? 'auto');
 
+                // FLX-0040: el canal REAL puede diferir del elegido (device -> forzado a fcm).
+                $channel = $res['command']->channel;
                 $via = $channel === 'poll' ? 'cola (polling)' : ($res['pushed'] ? 'FCM enviado' : 'cola (sin push)');
                 Notification::make()
                     ->title("Reinicio ({$data['level']}) encolado para {$device->code} — canal: {$channel} · {$via}")
