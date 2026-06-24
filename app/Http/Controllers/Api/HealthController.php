@@ -63,6 +63,13 @@ class HealthController extends Controller
             // se ignora: el heartbeat ya quedo persistido
         }
 
+        // FLX-0051: evaluar fallas criticas de Sentinel/permisos y levantar alerta si corresponde. Best-effort.
+        try {
+            app(\App\Services\SentinelSupervisor::class)->evaluate($device->fresh('health'));
+        } catch (\Throwable $e) {
+            // se ignora: el heartbeat ya quedo persistido
+        }
+
         return response()->json(['ok' => true, 'device' => $device->code, 'overall' => $data['overall']]);
     }
 

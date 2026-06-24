@@ -139,6 +139,14 @@ class DeviceHealthTable
                         'down', 'not_installed' => 'warning',
                         default => 'gray',
                     }),
+                // FLX-0051: provision industrial (permisos/lock task/recovery) + alerta de Sentinel critico.
+                TextColumn::make('provision')
+                    ->label('Provisión')
+                    ->state(fn (DeviceHealth $r): string => self::provision($r))
+                    ->badge()
+                    ->color(fn (DeviceHealth $r): string => self::provisionSeverity($r))
+                    ->wrap()
+                    ->toggleable(),
                 // FLX-0047: estabilidad (crash/ANR/UI congelada) con color por status.
                 TextColumn::make('estabilidad')
                     ->label('Estabilidad')
@@ -425,6 +433,57 @@ class DeviceHealthTable
         }
 
         return $s;
+    }
+
+    /** FLX-0051: resumen de provision industrial (notificaciones / lock task / recovery capable). */
+    private static function provision(DeviceHealth $r): string
+    {
+        $p = data_get($r->device_metrics, 'industrial_provisioning');
+        $recovery = data_get($r->device_metrics, 'sentinel_recovery_capable')
+            ?? data_get($r->device_metrics, 'sentinel.recovery_capable');
+        if ($p === null && $recovery === null) {
+            return '—';
+        }
+        $parts = [];
+        if (data_get($p, 'post_notifications_sentinel') === false) {
+            $parts[] = 'Sentinel sin notif.';
+        }
+        if (data_get($p, 'post_notifications_vls') === false) {
+            $parts[] = 'VLS sin notif.';
+        }
+        if (data_get($p, 'lock_task_packages_ok') === false) {
+            $parts[] = 'lock-task incompleto';
+        }
+        if ($recovery === false) {
+            $parts[] = 'sin recovery';
+        }
+        if (data_get($p, 'last_error')) {
+            $parts[] = 'OEM: requiere acción';
+        }
+
+        return $parts === [] ? 'OK' : implode(' · ', $parts);
+    }
+
+    /** FLX-0051: severidad de la columna de provision. */
+    public static function provisionSeverity(DeviceHealth $r): string
+    {
+        $p = data_get($r->device_metrics, 'industrial_provisioning');
+        $recovery = data_get($r->device_metrics, 'sentinel_recovery_capable')
+            ?? data_get($r->device_metrics, 'sentinel.recovery_capable');
+        if ($p === null && $recovery === null) {
+            return 'gray';
+        }
+        // Critico: falta notificaciones del Sentinel o no hay capacidad de recuperacion.
+        if (data_get($p, 'post_notifications_sentinel') === false || $recovery === false) {
+            return 'danger';
+        }
+        if (data_get($p, 'post_notifications_vls') === false
+            || data_get($p, 'lock_task_packages_ok') === false
+            || data_get($p, 'last_error')) {
+            return 'warning';
+        }
+
+        return 'success';
     }
 
     /** FLX-0049: estado de la UI de VLS (vivo pero congelado). */
