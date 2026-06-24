@@ -7,6 +7,7 @@ use App\Filament\Actions\LogsDeviceActions;
 use App\Filament\Actions\MaintenanceDeviceAction;
 use App\Filament\Actions\PushDeviceAction;
 use App\Filament\Actions\RestartDeviceAction;
+use App\Filament\Actions\StabilityDeviceActions;
 use App\Filament\Actions\StopAllDeviceAction;
 use App\Models\DeviceHealth;
 use Filament\Tables\Columns\IconColumn;
@@ -23,7 +24,7 @@ class DeviceHealthTable
         $offline = (int) config('health.offline_minutes', 5);
 
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['device.site']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['device.site', 'device.stabilityState']))
             ->defaultSort('reported_at', 'desc')
             ->poll('30s')
             ->columns([
@@ -121,6 +122,35 @@ class DeviceHealthTable
                     ->badge()
                     ->color(fn (DeviceHealth $r): string => self::requirementsSeverity($r))
                     ->wrap(),
+                // FLX-0049: usabilidad real de la UI (vivo pero congelado) desde device.ui.
+                TextColumn::make('ui_vls')
+                    ->label('UI VLS')
+                    ->state(fn (DeviceHealth $r): string => self::uiVls($r))
+                    ->badge()
+                    ->color(fn (DeviceHealth $r): string => (data_get($r->device_metrics, 'ui.frozen') === true) ? 'danger' : ((data_get($r->device_metrics, 'ui') === null) ? 'gray' : 'success')),
+                // FLX-0049: confiabilidad del Sentinel (hibernacion OEM). VLS lo manda en campos PLANOS.
+                TextColumn::make('sentinel_conf')
+                    ->label('Sentinel')
+                    ->state(fn (DeviceHealth $r): string => self::sentinelConf($r))
+                    ->badge()
+                    ->color(fn (DeviceHealth $r): string => match (self::sentinelWatchStatus($r)) {
+                        'ok' => 'success',
+                        'oem_hibernation_suspected' => 'danger',
+                        'down', 'not_installed' => 'warning',
+                        default => 'gray',
+                    }),
+                // FLX-0047: estabilidad (crash/ANR/UI congelada) con color por status.
+                TextColumn::make('estabilidad')
+                    ->label('Estabilidad')
+                    ->state(fn (DeviceHealth $r): string => self::stability($r))
+                    ->badge()
+                    ->color(fn (DeviceHealth $r): string => match ($r->device?->stabilityState?->stability_status) {
+                        'critical' => 'danger',
+                        'warn' => 'warning',
+                        'ok' => 'success',
+                        default => 'gray',
+                    })
+                    ->wrap(),
                 // FLX-0043: energia (bateria vs umbrales) + mantenimiento (edad + revision/reemplazo).
                 // Codex: color por severidad para que la alerta sea visible sin leer todo el texto.
                 TextColumn::make('mantenimiento')
@@ -144,6 +174,9 @@ class DeviceHealthTable
                 LogsDeviceActions::requestLogs(fn (DeviceHealth $record) => $record->device),
                 LogsDeviceActions::clearLogs(fn (DeviceHealth $record) => $record->device),
                 LogsDeviceActions::downloadLatest(fn (DeviceHealth $record) => $record->device),
+                // FLX-0048/0050: diagnostico y reset de estabilidad.
+                StabilityDeviceActions::requestDiagnostics(fn (DeviceHealth $record) => $record->device),
+                StabilityDeviceActions::resetDiagnostics(fn (DeviceHealth $record) => $record->device),
                 // REQ-0031: mantenimiento (pausar auto-recuperacion / limpiar contadores).
                 MaintenanceDeviceAction::make(fn (DeviceHealth $record) => $record->device),
             ]);
@@ -389,6 +422,88 @@ class DeviceHealthTable
         }
         if ($st->last_recovery_at) {
             $s .= ' · últ. recup.: '.$st->last_recovery_at->diffForHumans();
+        }
+
+        return $s;
+    }
+
+    /** FLX-0049: estado de la UI de VLS (vivo pero congelado). */
+    private static function uiVls(DeviceHealth $r): string
+    {
+        $ui = data_get($r->device_metrics, 'ui');
+        if ($ui === null) {
+            return '—';
+        }
+        if (data_get($ui, 'frozen') === true) {
+            return 'CONGELADA '.((int) data_get($ui, 'freeze_seconds')).'s';
+        }
+
+        return 'OK';
+    }
+
+    /**
+     * FLX-0049 (Codex R1): resuelve sentinel_watch_status leyendo AMBOS formatos: campo plano que envia VLS
+     * (device_metrics.sentinel_watch_status) y el anidado (device_metrics.sentinel.sentinel_watch_status).
+     */
+    public static function sentinelWatchStatus(DeviceHealth $r): ?string
+    {
+        return data_get($r->device_metrics, 'sentinel_watch_status')
+            ?? data_get($r->device_metrics, 'sentinel.sentinel_watch_status');
+    }
+
+    private static function sentinelHibernation(DeviceHealth $r): bool
+    {
+        return data_get($r->device_metrics, 'sentinel_oem_hibernation_suspected') === true
+            || data_get($r->device_metrics, 'sentinel.sentinel_oem_hibernation_suspected') === true;
+    }
+
+    /** FLX-0049: confiabilidad del Sentinel (hibernacion OEM). */
+    private static function sentinelConf(DeviceHealth $r): string
+    {
+        $status = self::sentinelWatchStatus($r);
+        if ($status === null && ! self::sentinelHibernation($r)) {
+            return '—';
+        }
+
+        return match ($status) {
+            'ok' => 'confiable',
+            'oem_hibernation_suspected' => 'posible hibernación OEM',
+            'down' => 'caído',
+            'not_installed' => 'no instalado',
+            default => (self::sentinelHibernation($r) ? 'posible hibernación OEM' : '—'),
+        };
+    }
+
+    /** FLX-0047: resumen de estabilidad (status + contadores 24h + ultimo evento). */
+    private static function stability(DeviceHealth $r): string
+    {
+        $st = $r->device?->stabilityState;
+        if (! $st) {
+            return '—';
+        }
+        $parts = [];
+        if ($st->crash_count_24h > 0) {
+            $parts[] = "{$st->crash_count_24h} crash";
+        }
+        if ($st->anr_count_24h > 0) {
+            $parts[] = "{$st->anr_count_24h} ANR";
+        }
+        if ($st->ui_freeze_count_24h > 0) {
+            $parts[] = "{$st->ui_freeze_count_24h} UI";
+        }
+        if ($st->ui_frozen) {
+            $parts[] = 'UI CONGELADA';
+        }
+        $s = $parts === [] ? 'OK' : implode(' · ', $parts).' (24h)';
+        if ($st->last_stability_event && $st->last_stability_event_at) {
+            $s .= ' · últ: '.$st->last_stability_event.' '.$st->last_stability_event_at->diffForHumans();
+        }
+        // FLX-0048: recuperacion automatica en curso + ultimo diagnostico.
+        if ($st->recovery_step && $st->recovery_step !== 'idle') {
+            $s .= ' · recup: '.$st->recovery_step;
+        }
+        if ($st->last_diagnostic_id) {
+            $s .= ' · diag: '.$st->last_diagnostic_id;
         }
 
         return $s;

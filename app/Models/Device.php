@@ -58,4 +58,16 @@ class Device extends Model
     {
         return $this->hasOne(DeviceRequirementState::class);
     }
+
+    /** Estado de estabilidad consolidado (FLX-0047). */
+    public function stabilityState(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(DeviceStabilityState::class);
+    }
+
+    /** Eventos de estabilidad (FLX-0047). */
+    public function stabilityEvents(): HasMany
+    {
+        return $this->hasMany(StabilityEvent::class);
+    }
 }

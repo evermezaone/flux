@@ -19,7 +19,9 @@ class CommandController extends Controller
 {
     private const ALLOWED = ['snapshot', 'publish_clip', 'publish_timelapse', 'delete_clip', 'delete_all', 'config_update', 'restart', 'clear_recovery', 'maintenance', 'stop_all', 'get_logs', 'reset_logs',
         // FLX-0042: diagnostico industrial extendido (el equipo los ejecuta en VLS-0060).
-        'get_status', 'get_apps', 'get_permissions', 'get_device_policy', 'get_battery', 'get_network', 'get_foreground_state'];
+        'get_status', 'get_apps', 'get_permissions', 'get_device_policy', 'get_battery', 'get_network', 'get_foreground_state',
+        // FLX-0048: diagnostico/recuperacion de estabilidad (el equipo los ejecuta en VLS-0068).
+        'get_diagnostics', 'reset_diagnostics', 'get_stability_events'];
 
     /** Operador (panel) encola un comando. Auth de operador (sesion). */
     public function enqueue(Request $request): JsonResponse

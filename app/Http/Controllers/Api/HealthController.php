@@ -56,6 +56,13 @@ class HealthController extends Controller
             // se ignora: el heartbeat ya quedo persistido
         }
 
+        // FLX-0047: ingerir eventos de estabilidad (device.stability) y recalcular el estado. Best-effort.
+        try {
+            app(\App\Services\StabilityIngestor::class)->ingest($device, $data['device']['stability'] ?? null);
+        } catch (\Throwable $e) {
+            // se ignora: el heartbeat ya quedo persistido
+        }
+
         return response()->json(['ok' => true, 'device' => $device->code, 'overall' => $data['overall']]);
     }
 
