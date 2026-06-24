@@ -147,6 +147,15 @@ class DeviceHealthTable
                     ->color(fn (DeviceHealth $r): string => self::provisionSeverity($r))
                     ->wrap()
                     ->toggleable(),
+                // FLX-0052: versiones reales de VLS y Sentinel (bloque apps de VLS-0078) + badge si falta
+                // actualizar VLS, Sentinel o ambos (comparado contra la version mas nueva vista en la flota).
+                TextColumn::make('versiones')
+                    ->label('Versiones VLS / Sentinel')
+                    ->state(fn (DeviceHealth $r): string => self::versions($r))
+                    ->badge()
+                    ->color(fn (DeviceHealth $r): string => self::versionsSeverity($r))
+                    ->wrap()
+                    ->toggleable(),
                 // FLX-0047: estabilidad (crash/ANR/UI congelada) con color por status.
                 TextColumn::make('estabilidad')
                     ->label('Estabilidad')
@@ -601,5 +610,110 @@ class DeviceHealthTable
         }
 
         return 'gray';
+    }
+
+    // ===================== FLX-0052: versiones VLS / Sentinel =====================
+
+    /** Version mas nueva (max version_code) vista en la flota, por app. Memoizada por request. */
+    private static ?array $fleetMaxCache = null;
+
+    private static function fleetMax(): array
+    {
+        if (self::$fleetMaxCache !== null) {
+            return self::$fleetMaxCache;
+        }
+        $vls = 0;
+        $sen = 0;
+        foreach (DeviceHealth::query()->get(['device_metrics']) as $h) {
+            $vls = max($vls, (int) data_get($h->device_metrics, 'apps.vls.version_code', 0));
+            $sen = max($sen, (int) data_get($h->device_metrics, 'apps.sentinel.version_code', 0));
+        }
+
+        return self::$fleetMaxCache = ['vls' => $vls ?: null, 'sentinel' => $sen ?: null];
+    }
+
+    /**
+     * Veredicto de versiones de un equipo. No rompe con heartbeats viejos sin bloque `apps` (-> unknown).
+     * 'old' = version_code menor que la mas nueva de la flota (auto-calibrado, sin config manual).
+     */
+    private static function versionsVerdict(DeviceHealth $r): string
+    {
+        $apps = $r->device_metrics['apps'] ?? null;
+        if (! is_array($apps) || ! isset($apps['vls'])) {
+            return 'unknown'; // heartbeat viejo o sin datos
+        }
+        $sen = $apps['sentinel'] ?? null;
+        $senInstalled = is_array($sen) && ($sen['installed'] ?? false) === true;
+        if (! $senInstalled) {
+            return 'sentinel_missing';
+        }
+        // provider del Sentinel caido (bloque anidado device.sentinel de VLS-0076).
+        if (data_get($r->device_metrics, 'sentinel.provider_ok') === false) {
+            return 'sentinel_provider_down';
+        }
+        // Sentinel legacy 1/1.0 cuando ya existe una version mayor publicada en la flota.
+        $fleet = self::fleetMax();
+        $vlsCode = (int) data_get($apps, 'vls.version_code', 0);
+        $senCode = (int) data_get($apps, 'sentinel.version_code', 0);
+        $senLegacy = ($senCode <= 1 || data_get($apps, 'sentinel.version_name') === '1.0')
+            && $fleet['sentinel'] && $fleet['sentinel'] > 1;
+
+        $vlsOld = $fleet['vls'] && $vlsCode > 0 && $vlsCode < $fleet['vls'];
+        $senOld = $senLegacy || ($fleet['sentinel'] && $senCode > 0 && $senCode < $fleet['sentinel']);
+
+        if ($vlsOld && $senOld) {
+            return 'both_old';
+        }
+        if ($vlsOld) {
+            return 'vls_old';
+        }
+        if ($senOld) {
+            return 'sentinel_old';
+        }
+
+        return 'ok';
+    }
+
+    /** Texto del badge: versiones por separado + veredicto. */
+    private static function versions(DeviceHealth $r): string
+    {
+        $apps = $r->device_metrics['apps'] ?? null;
+        if (! is_array($apps) || ! isset($apps['vls'])) {
+            return 'desconocido (sin datos)';
+        }
+        $name = function (?array $a): string {
+            if (! is_array($a)) {
+                return '—';
+            }
+            if (($a['installed'] ?? false) === false) {
+                return 'no instalado';
+            }
+
+            return (string) ($a['version_name'] ?? '?');
+        };
+        $vls = $name($apps['vls'] ?? null);
+        $sen = $name($apps['sentinel'] ?? null);
+        $verdict = match (self::versionsVerdict($r)) {
+            'ok' => 'al día',
+            'unknown' => 'desconocido',
+            'sentinel_missing' => 'Sentinel no instalado',
+            'sentinel_provider_down' => 'Sentinel sin provider',
+            'vls_old' => 'actualizar VLS',
+            'sentinel_old' => 'actualizar Sentinel',
+            'both_old' => 'actualizar ambos',
+            default => '—',
+        };
+
+        return "VLS {$vls} · Sentinel {$sen} — {$verdict}";
+    }
+
+    private static function versionsSeverity(DeviceHealth $r): string
+    {
+        return match (self::versionsVerdict($r)) {
+            'ok' => 'success',
+            'vls_old', 'sentinel_old' => 'warning',
+            'sentinel_missing', 'sentinel_provider_down', 'both_old' => 'danger',
+            default => 'gray',
+        };
     }
 }
