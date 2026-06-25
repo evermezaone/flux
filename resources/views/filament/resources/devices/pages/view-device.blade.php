@@ -22,20 +22,52 @@
             return (string) $value;
         };
 
+        // FLX-0058: un nodo CONECTADO (heartbeat reciente) y operativo debe verse verde. Solo amarillo/rojo
+        // ante advertencia/falla REAL; evitar falsos warn/fail por datos no recibidos o base recien cargada
+        // cuando hay senal fuerte de conectividad.
+        $offlineMin = (int) config('health.offline_minutes', 5);
+        $online = $lastSeen && $lastSeen->greaterThan(now()->subMinutes($offlineMin));
+
         $healthTone = match ($status) {
             'ok' => 'ok',
             'warn' => 'warn',
             'fail' => 'fail',
-            default => 'muted',
+            default => $online ? 'ok' : 'muted', // sin overall pero online -> conectado/operativo
         };
-        $fgTone = $fg === true ? 'ok' : ($fg === false ? 'warn' : 'muted');
-        $reqTone = $requirements?->ok === true ? 'ok' : ($requirements ? 'fail' : 'muted');
+        // VLS al frente: false es advertencia real; desconocido con el nodo online no es falla.
+        $fgTone = $fg === true ? 'ok' : ($fg === false ? 'warn' : ($online ? 'ok' : 'muted'));
+        // FCM: token presente = canal de despertado operativo.
+        $fcmTone = $device->fcm_token ? 'ok' : ($online ? 'warn' : 'muted');
+        // Prerequisitos: rojo SOLO con criticos reales; amarillo con warnings; sin incumplimientos y online -> verde.
+        $reqCrit = (int) ($requirements?->critical_count ?? 0);
+        $reqWarn = (int) ($requirements?->warning_count ?? 0);
+        $reqTone = $reqCrit > 0 ? 'fail' : ($reqWarn > 0 ? 'warn' : (($requirements?->ok === true || $online) ? 'ok' : 'muted'));
+        // Estabilidad: critico->rojo, warn->amarillo, ok->verde; sin datos pero online -> verde (sin falla reportada).
         $stabilityTone = match ($stability?->stability_status) {
             'ok' => 'ok',
             'warn' => 'warn',
             'critical' => 'fail',
-            default => 'muted',
+            default => $online ? 'ok' : 'muted',
         };
+        // Supervisor remoto: mapear estados reales; requiere_intervencion = falla; online/ok = verde.
+        $supTone = match ($supervision?->state) {
+            'online', 'ok' => 'ok',
+            'requiere_intervencion' => 'fail',
+            'degradado', 'recuperando', 'sin_metricas' => 'warn',
+            default => $supervision ? 'warn' : ($online ? 'ok' : 'muted'),
+        };
+        // Red / Sentinel para el tablero de Salud (mismo principio verde-si-operativo).
+        $netType = data_get($hm, 'network.type', data_get($hm, 'network'));
+        $netTone = $online ? 'ok' : 'muted';
+        $senWatch = data_get($hm, 'sentinel.sentinel_watch_status', data_get($hm, 'sentinel_watch_status'));
+        $senTone = match ($senWatch) {
+            'ok' => 'ok',
+            'oem_hibernation_suspected' => 'fail',
+            'down', 'not_installed' => 'warn',
+            default => $online ? 'ok' : 'muted',
+        };
+        // Intervencion requerida = advertencia real.
+        $intervTone = ! empty($hm['requires_intervention']) ? 'fail' : ($online ? 'ok' : 'muted');
 
         $tabs = [
             'resumen' => 'Resumen',
@@ -131,7 +163,7 @@
         @media (max-width: 700px) { .flx-status-row { grid-template-columns:1fr; } .flx-status-card { border-right:0; border-bottom:1px solid var(--line); } .flx-status-card:last-child { border-bottom:0; } .flx-field { grid-template-columns:1fr; gap:4px; } .flx-title { font-size:24px; } }
     </style>
 
-    <div class="flx-device" x-data="{ tab: 'resumen', raw: false }">
+    <div class="flx-device" x-data="{ tab: 'resumen', raw: false, sraw: false }">
         <div class="flx-shell">
             <section class="flx-hero">
                 <div class="flx-hero-top">
@@ -176,12 +208,12 @@
                     </div>
                     <div class="flx-status-card">
                         <div class="flx-kicker">Prerequisitos</div>
-                        <div class="flx-status-main"><span class="flx-pill {{ $reqTone }}">{{ $requirements?->ok === true ? 'OK' : ($requirements ? 'requiere atencion' : 'sin datos') }}</span></div>
-                        <div class="flx-status-sub">Criticos: {{ $requirements?->critical_count ?? 0 }} - Warnings: {{ $requirements?->warning_count ?? 0 }}</div>
+                        <div class="flx-status-main"><span class="flx-pill {{ $reqTone }}">{{ $reqCrit > 0 ? 'requiere atencion' : ($reqWarn > 0 ? 'advertencias' : (($requirements?->ok === true || $online) ? 'OK' : 'sin datos')) }}</span></div>
+                        <div class="flx-status-sub">Criticos: {{ $reqCrit }} - Warnings: {{ $reqWarn }}</div>
                     </div>
                     <div class="flx-status-card">
                         <div class="flx-kicker">Estabilidad</div>
-                        <div class="flx-status-main"><span class="flx-pill {{ $stabilityTone }}">{{ $stability?->stability_status ?? 'sin datos' }}</span></div>
+                        <div class="flx-status-main"><span class="flx-pill {{ $stabilityTone }}">{{ $stability?->stability_status ?? ($online ? 'estable' : 'sin datos') }}</span></div>
                         <div class="flx-status-sub">Crash {{ $stability?->crash_count_24h ?? 0 }} - ANR {{ $stability?->anr_count_24h ?? 0 }} - UI {{ $stability?->ui_freeze_count_24h ?? 0 }}</div>
                     </div>
                 </div>
@@ -234,7 +266,7 @@
                                     <div><div class="flx-marker-title">VLS al frente</div><div class="flx-marker-sub">{{ $fgLabel }}</div></div>
                                 </div>
                                 <div class="flx-marker">
-                                    <span class="flx-marker-dot {{ $device->fcm_token ? 'ok' : 'warn' }}"></span>
+                                    <span class="flx-marker-dot {{ $fcmTone }}"></span>
                                     <div><div class="flx-marker-title">Canal FCM</div><div class="flx-marker-sub">{{ $device->fcm_token ? 'token presente' : 'token ausente' }}</div></div>
                                 </div>
                             </div>
@@ -248,8 +280,8 @@
                                     <div><div class="flx-marker-title">Estabilidad</div><div class="flx-marker-sub">{{ $stability?->stability_status ?? 'sin datos' }}</div></div>
                                 </div>
                                 <div class="flx-marker">
-                                    <span class="flx-marker-dot {{ $supervision?->state === 'ok' ? 'ok' : ($supervision ? 'warn' : 'muted') }}"></span>
-                                    <div><div class="flx-marker-title">Supervisor remoto</div><div class="flx-marker-sub">{{ $supervision?->state ?? 'sin estado' }}</div></div>
+                                    <span class="flx-marker-dot {{ $supTone }}"></span>
+                                    <div><div class="flx-marker-title">Supervisor remoto</div><div class="flx-marker-sub">{{ $supervision?->state ?? ($online ? 'operativo' : 'sin estado') }}</div></div>
                                 </div>
                             </div>
                         </div>
@@ -268,7 +300,31 @@
                 </div>
             </section>
 
-            <section x-show="tab === 'salud'" x-cloak class="flx-grid-2">
+            <section x-show="tab === 'salud'" x-cloak>
+                {{-- FLX-0058: tablero visual ejecutivo primero; datos crudos bajo demanda (toggle Visual/Crudo). --}}
+                <div class="flx-card" style="margin-bottom:16px;">
+                    <div class="flx-card-head flx-section-tools">
+                        <h2 class="flx-card-title">Tablero de salud</h2>
+                        <div class="flx-view-toggle">
+                            <button type="button" class="flx-toggle-btn" :class="{ 'active': ! sraw }" @click="sraw = false">Visual</button>
+                            <button type="button" class="flx-toggle-btn" :class="{ 'active': sraw }" @click="sraw = true">Crudo</button>
+                        </div>
+                    </div>
+                    <div class="flx-card-body" x-show="! sraw">
+                        <div class="flx-marker-grid">
+                            <div class="flx-marker"><span class="flx-marker-dot {{ $healthTone }}"></span><div><div class="flx-marker-title">Salud general</div><div class="flx-marker-sub">{{ strtoupper($status) }}</div></div></div>
+                            <div class="flx-marker"><span class="flx-marker-dot {{ $fgTone }}"></span><div><div class="flx-marker-title">VLS al frente</div><div class="flx-marker-sub">{{ $fgLabel }}</div></div></div>
+                            <div class="flx-marker"><span class="flx-marker-dot {{ $netTone }}"></span><div><div class="flx-marker-title">Red</div><div class="flx-marker-sub">{{ $netType ? $fmt($netType) : ($online ? 'conectado' : 'sin datos') }}</div></div></div>
+                            <div class="flx-marker"><span class="flx-marker-dot {{ $senTone }}"></span><div><div class="flx-marker-title">Sentinel</div><div class="flx-marker-sub">{{ $senWatch ? $fmt($senWatch) : ($online ? 'operativo' : 'sin datos') }}</div></div></div>
+                            <div class="flx-marker"><span class="flx-marker-dot {{ $reqTone }}"></span><div><div class="flx-marker-title">Prerequisitos</div><div class="flx-marker-sub">Criticos {{ $reqCrit }} - Warnings {{ $reqWarn }}</div></div></div>
+                            <div class="flx-marker"><span class="flx-marker-dot {{ $stabilityTone }}"></span><div><div class="flx-marker-title">Estabilidad</div><div class="flx-marker-sub">{{ $stability?->stability_status ?? ($online ? 'estable' : 'sin datos') }}</div></div></div>
+                            <div class="flx-marker"><span class="flx-marker-dot {{ $supTone }}"></span><div><div class="flx-marker-title">Supervisor remoto</div><div class="flx-marker-sub">{{ $supervision?->state ?? ($online ? 'operativo' : 'sin estado') }}</div></div></div>
+                            <div class="flx-marker"><span class="flx-marker-dot {{ $intervTone }}"></span><div><div class="flx-marker-title">Intervencion</div><div class="flx-marker-sub">{{ ! empty($hm['requires_intervention']) ? 'requerida' : 'no requerida' }}</div></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="sraw" x-cloak class="flx-grid-2">
                 <div class="flx-card">
                     <div class="flx-card-head"><h2 class="flx-card-title">Estado operativo</h2></div>
                     <div class="flx-card-body flx-fields">
@@ -307,6 +363,7 @@
                             <div class="flx-empty">Sin eventos de estabilidad recientes.</div>
                         @endforelse
                     </div>
+                </div>
                 </div>
             </section>
 
