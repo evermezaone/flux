@@ -16,18 +16,15 @@ use Filament\Actions\ActionGroup;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Icons\Heroicon;
 
-/**
- * Central device console: operation summary, health, commands, logs, media and telemetry.
- */
-class ViewDevice extends ViewRecord
+class ViewDeviceV2 extends ViewRecord
 {
     protected static string $resource = DeviceResource::class;
 
-    protected string $view = 'filament.resources.devices.pages.view-device';
+    protected string $view = 'filament.resources.devices.pages.view-device-v2';
 
     public function getTitle(): string
     {
-        return 'Device '.$this->record->code;
+        return 'Device '.$this->record->code.' - V2';
     }
 
     protected function getHeaderActions(): array
@@ -55,11 +52,6 @@ class ViewDevice extends ViewRecord
         ];
     }
 
-    public function getCachedHeaderActions(): array
-    {
-        return [];
-    }
-
     protected function getViewData(): array
     {
         $device = $this->record->loadMissing([
@@ -70,23 +62,17 @@ class ViewDevice extends ViewRecord
             'stabilityState',
         ]);
 
-        $commands = $device->commands()->latest('id')->limit(20)->get();
-        $lastLog = DeviceLog::where('device_id', $device->id)->latest('reported_at')->first();
-        $media = $device->media()->where('available', true)->latest('ts_start')->limit(12)->get();
-        $telemetry = $device->telemetry()->latest('ts')->limit(8)->get();
-        $stabilityEvents = $device->stabilityEvents()->latest('occurred_at')->limit(10)->get();
-
         return [
             'device' => $device,
             'health' => $device->health,
             'supervision' => $device->supervision,
             'requirements' => $device->requirementState,
             'stability' => $device->stabilityState,
-            'stabilityEvents' => $stabilityEvents,
-            'commands' => $commands,
-            'lastLog' => $lastLog,
-            'media' => $media,
-            'telemetry' => $telemetry,
+            'stabilityEvents' => $device->stabilityEvents()->latest('occurred_at')->limit(10)->get(),
+            'commands' => $device->commands()->latest('id')->limit(20)->get(),
+            'lastLog' => DeviceLog::where('device_id', $device->id)->latest('reported_at')->first(),
+            'media' => $device->media()->where('available', true)->latest('ts_start')->limit(12)->get(),
+            'telemetry' => $device->telemetry()->latest('ts')->limit(8)->get(),
         ];
     }
 }

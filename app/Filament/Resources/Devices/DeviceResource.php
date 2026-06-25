@@ -6,6 +6,7 @@ use App\Filament\Resources\Devices\Pages\CreateDevice;
 use App\Filament\Resources\Devices\Pages\EditDevice;
 use App\Filament\Resources\Devices\Pages\ListDevices;
 use App\Filament\Resources\Devices\Pages\ViewDevice;
+use App\Filament\Resources\Devices\Pages\ViewDeviceV2;
 use App\Filament\Resources\Devices\Schemas\DeviceForm;
 use App\Filament\Resources\Devices\Tables\DevicesTable;
 use App\Models\Device;
@@ -43,6 +44,7 @@ class DeviceResource extends Resource
         return [
             'index' => ListDevices::route('/'),
             'create' => CreateDevice::route('/create'),
+            'view-v2' => ViewDeviceV2::route('/{record}/v2'), // comparacion de consola anterior
             'view' => ViewDevice::route('/{record}'), // FLX-0057: ficha central
             'edit' => EditDevice::route('/{record}/edit'),
         ];

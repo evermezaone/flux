@@ -1,4 +1,4 @@
-<x-filament-panels::page>
+﻿<x-filament-panels::page>
     @php
         $hm = $health?->device_metrics ?? [];
         $site = $device->site;
@@ -8,7 +8,6 @@
         $fg = data_get($hm, 'app_foreground');
         $fgLabel = $fg === null ? 'desconocido' : ($fg ? 'al frente' : 'background');
         $battery = data_get($hm, 'battery_pct');
-        $batteryValue = is_numeric($battery) ? max(0, min(100, (int) $battery)) : null;
         $vlsVer = data_get($hm, 'apps.vls.version_name') ?? ($health?->app_version ?? null);
         $vlsCode = data_get($hm, 'apps.vls.version_code');
         $senVer = data_get($hm, 'apps.sentinel.version_name');
@@ -72,15 +71,6 @@
         .flx-kicker { color:var(--muted); font-size:12px; font-weight:750; text-transform:uppercase; }
         .flx-status-main { margin-top:6px; color:var(--ink); font-size:15px; font-weight:750; }
         .flx-status-sub { margin-top:4px; color:var(--muted); font-size:13px; line-height:1.35; }
-        .flx-actionbar { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:16px 20px; border-top:1px solid var(--line); background:#f8fafc; }
-        .flx-action-title { color:var(--ink); font-size:13px; font-weight:800; text-transform:uppercase; }
-        .flx-action-sub { margin-top:2px; color:var(--muted); font-size:12px; }
-        .flx-action-buttons { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
-        .flx-action-btn { min-height:38px; border:1px solid transparent; border-radius:8px; padding:8px 13px; cursor:pointer; font-size:13px; font-weight:800; }
-        .flx-action-btn.danger { color:#fff; background:#dc2626; border-color:#dc2626; }
-        .flx-action-btn.warn { color:#78350f; background:#fbbf24; border-color:#f59e0b; }
-        .flx-action-btn.ok { color:#064e3b; background:#34d399; border-color:#10b981; }
-        .flx-action-btn.gray { color:#111827; background:#fff; border-color:var(--line); }
         .flx-tabs { display:flex; gap:4px; padding:5px; border:1px solid var(--line); border-radius:10px; background:var(--soft); overflow-x:auto; }
         .flx-tab { appearance:none; border:0; border-radius:7px; background:transparent; color:var(--muted); cursor:pointer; padding:9px 13px; white-space:nowrap; font-size:14px; font-weight:700; }
         .flx-tab.active { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(15,23,42,.08); outline:1px solid var(--line); }
@@ -107,31 +97,12 @@
         .flx-link-btn { display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:7px 12px; border-radius:8px; border:1px solid var(--line); color:var(--ink); background:#fff; font-size:13px; font-weight:700; text-decoration:none; }
         .flx-link-btn.primary { border-color:#2563eb; background:#2563eb; color:#fff; }
         .flx-result { margin-top:10px; border-radius:8px; background:#f8fafc; padding:10px; color:#334155; font-size:12px; line-height:1.45; }
-        .flx-section-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-        .flx-view-toggle { display:inline-flex; gap:4px; padding:4px; border:1px solid var(--line); border-radius:9px; background:#f8fafc; }
-        .flx-toggle-btn { border:0; border-radius:7px; background:transparent; color:var(--muted); cursor:pointer; padding:7px 10px; font-size:12px; font-weight:800; }
-        .flx-toggle-btn.active { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(15,23,42,.08); }
-        .flx-visual-grid { display:grid; grid-template-columns: 260px repeat(2, minmax(0, 1fr)); gap:16px; }
-        .flx-gauge-card { min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; border:1px solid var(--line); border-radius:10px; background:#fff; }
-        .flx-gauge { width:138px; height:138px; border-radius:50%; display:grid; place-items:center; background:conic-gradient(var(--gauge-color) calc(var(--gauge-value) * 1%), #e5e7eb 0); position:relative; }
-        .flx-gauge::after { content:""; position:absolute; inset:13px; border-radius:50%; background:#fff; box-shadow: inset 0 0 0 1px #eef2f7; }
-        .flx-gauge-value { position:relative; z-index:1; color:var(--ink); font-size:28px; font-weight:850; }
-        .flx-gauge-label { color:var(--muted); font-size:12px; font-weight:800; text-transform:uppercase; }
-        .flx-marker-grid { display:grid; gap:10px; }
-        .flx-marker { display:flex; align-items:center; gap:12px; min-height:58px; border:1px solid var(--line); border-radius:10px; background:#fff; padding:12px; }
-        .flx-marker-dot { width:14px; height:14px; border-radius:50%; flex:0 0 auto; box-shadow:0 0 0 4px rgba(148,163,184,.18); }
-        .flx-marker-dot.ok { background:#22c55e; }
-        .flx-marker-dot.warn { background:#f59e0b; }
-        .flx-marker-dot.fail { background:#ef4444; }
-        .flx-marker-dot.muted { background:#94a3b8; }
-        .flx-marker-title { color:var(--ink); font-size:14px; font-weight:800; }
-        .flx-marker-sub { margin-top:2px; color:var(--muted); font-size:12px; line-height:1.35; }
         [x-cloak] { display:none !important; }
-        @media (max-width: 1100px) { .flx-hero-top, .flx-grid, .flx-grid-2, .flx-visual-grid { grid-template-columns:1fr; } .flx-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .flx-actionbar { align-items:flex-start; flex-direction:column; } .flx-action-buttons { justify-content:flex-start; } }
+        @media (max-width: 1100px) { .flx-hero-top, .flx-grid, .flx-grid-2 { grid-template-columns:1fr; } .flx-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
         @media (max-width: 700px) { .flx-status-row { grid-template-columns:1fr; } .flx-status-card { border-right:0; border-bottom:1px solid var(--line); } .flx-status-card:last-child { border-bottom:0; } .flx-field { grid-template-columns:1fr; gap:4px; } .flx-title { font-size:24px; } }
     </style>
 
-    <div class="flx-device" x-data="{ tab: 'resumen', raw: false }">
+    <div class="flx-device" x-data="{ tab: 'resumen' }">
         <div class="flx-shell">
             <section class="flx-hero">
                 <div class="flx-hero-top">
@@ -185,20 +156,6 @@
                         <div class="flx-status-sub">Crash {{ $stability?->crash_count_24h ?? 0 }} - ANR {{ $stability?->anr_count_24h ?? 0 }} - UI {{ $stability?->ui_freeze_count_24h ?? 0 }}</div>
                     </div>
                 </div>
-
-                <div class="flx-actionbar">
-                    <div>
-                        <div class="flx-action-title">Comandos del equipo</div>
-                        <div class="flx-action-sub">Acciones remotas disponibles para este nodo.</div>
-                    </div>
-                    <div class="flx-action-buttons">
-                        <button type="button" class="flx-action-btn danger" wire:click="mountAction('reiniciar')">Reiniciar</button>
-                        <button type="button" class="flx-action-btn warn" wire:click="mountAction('despertar')">Despertar</button>
-                        <button type="button" class="flx-action-btn ok" wire:click="mountAction('reanudar')">Reanudar</button>
-                        <button type="button" class="flx-action-btn gray" wire:click="mountAction('diagnostico')">Diagnostico</button>
-                        <button type="button" class="flx-action-btn gray" wire:click="mountAction('solicitar_logs')">Logs</button>
-                    </div>
-                </div>
             </section>
 
             <nav class="flx-tabs" aria-label="Device tabs">
@@ -207,63 +164,23 @@
                 @endforeach
             </nav>
 
-            <section x-show="tab === 'resumen'" x-cloak>
+            <section x-show="tab === 'resumen'" x-cloak class="flx-grid">
                 <div class="flx-card">
-                    <div class="flx-card-head flx-section-tools">
-                        <h2 class="flx-card-title">Panel operativo</h2>
-                        <div class="flx-view-toggle">
-                            <button type="button" class="flx-toggle-btn" :class="{ 'active': ! raw }" @click="raw = false">Visual</button>
-                            <button type="button" class="flx-toggle-btn" :class="{ 'active': raw }" @click="raw = true">Crudo</button>
-                        </div>
-                    </div>
-                    <div class="flx-card-body" x-show="! raw">
-                        <div class="flx-visual-grid">
-                            <div class="flx-gauge-card">
-                                <div class="flx-gauge" style="--gauge-value: {{ $batteryValue ?? 0 }}; --gauge-color: {{ ($batteryValue ?? 0) >= 50 ? '#22c55e' : (($batteryValue ?? 0) >= 25 ? '#f59e0b' : '#ef4444') }};">
-                                    <div class="flx-gauge-value">{{ $batteryValue !== null ? $batteryValue.'%' : '--' }}</div>
-                                </div>
-                                <div class="flx-gauge-label">Bateria</div>
-                            </div>
-                            <div class="flx-marker-grid">
-                                <div class="flx-marker">
-                                    <span class="flx-marker-dot {{ $healthTone }}"></span>
-                                    <div><div class="flx-marker-title">Salud general</div><div class="flx-marker-sub">{{ strtoupper($status) }}</div></div>
-                                </div>
-                                <div class="flx-marker">
-                                    <span class="flx-marker-dot {{ $fgTone }}"></span>
-                                    <div><div class="flx-marker-title">VLS al frente</div><div class="flx-marker-sub">{{ $fgLabel }}</div></div>
-                                </div>
-                                <div class="flx-marker">
-                                    <span class="flx-marker-dot {{ $device->fcm_token ? 'ok' : 'warn' }}"></span>
-                                    <div><div class="flx-marker-title">Canal FCM</div><div class="flx-marker-sub">{{ $device->fcm_token ? 'token presente' : 'token ausente' }}</div></div>
-                                </div>
-                            </div>
-                            <div class="flx-marker-grid">
-                                <div class="flx-marker">
-                                    <span class="flx-marker-dot {{ $reqTone }}"></span>
-                                    <div><div class="flx-marker-title">Prerequisitos</div><div class="flx-marker-sub">Criticos {{ $requirements?->critical_count ?? 0 }} - Warnings {{ $requirements?->warning_count ?? 0 }}</div></div>
-                                </div>
-                                <div class="flx-marker">
-                                    <span class="flx-marker-dot {{ $stabilityTone }}"></span>
-                                    <div><div class="flx-marker-title">Estabilidad</div><div class="flx-marker-sub">{{ $stability?->stability_status ?? 'sin datos' }}</div></div>
-                                </div>
-                                <div class="flx-marker">
-                                    <span class="flx-marker-dot {{ $supervision?->state === 'ok' ? 'ok' : ($supervision ? 'warn' : 'muted') }}"></span>
-                                    <div><div class="flx-marker-title">Supervisor remoto</div><div class="flx-marker-sub">{{ $supervision?->state ?? 'sin estado' }}</div></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="flx-card-head"><h2 class="flx-card-title">Identidad y conectividad</h2></div>
                     <div class="flx-card-body flx-fields">
-                        <div x-show="raw" x-cloak>
-                            <div class="flx-field"><div class="flx-label">Codigo</div><div class="flx-value">{{ $device->code }}</div></div>
-                            <div class="flx-field"><div class="flx-label">Sitio</div><div class="flx-value">{{ $site?->code ?? 'sin sitio' }}</div></div>
-                            <div class="flx-field"><div class="flx-label">Modelo</div><div class="flx-value">{{ $device->model ?? 'sin modelo' }}</div></div>
-                            <div class="flx-field"><div class="flx-label">Device key</div><div class="flx-value"><code>{{ $maskKey ?: 'sin key' }}</code></div></div>
-                            <div class="flx-field"><div class="flx-label">FCM token</div><div class="flx-value"><span class="flx-pill {{ $device->fcm_token ? 'ok' : 'warn' }}">{{ $device->fcm_token ? 'presente' : 'ausente' }}</span></div></div>
-                            <div class="flx-field"><div class="flx-label">FCM actualizado</div><div class="flx-value">{{ $device->fcm_token_at ? $device->fcm_token_at->diffForHumans() : 'sin datos' }}</div></div>
-                            <div class="flx-field"><div class="flx-label">Ultima comunicacion</div><div class="flx-value">{{ $lastSeen ? $lastSeen->diffForHumans().' ('.$lastSeen->format('Y-m-d H:i:s').')' : 'sin datos' }}</div></div>
-                        </div>
+                        <div class="flx-field"><div class="flx-label">Codigo</div><div class="flx-value">{{ $device->code }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Sitio</div><div class="flx-value">{{ $site?->code ?? 'sin sitio' }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Modelo</div><div class="flx-value">{{ $device->model ?? 'sin modelo' }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Device key</div><div class="flx-value"><code>{{ $maskKey ?: 'sin key' }}</code></div></div>
+                        <div class="flx-field"><div class="flx-label">FCM token</div><div class="flx-value"><span class="flx-pill {{ $device->fcm_token ? 'ok' : 'warn' }}">{{ $device->fcm_token ? 'presente' : 'ausente' }}</span></div></div>
+                        <div class="flx-field"><div class="flx-label">FCM actualizado</div><div class="flx-value">{{ $device->fcm_token_at ? $device->fcm_token_at->diffForHumans() : 'sin datos' }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Ultima comunicacion</div><div class="flx-value">{{ $lastSeen ? $lastSeen->diffForHumans().' ('.$lastSeen->format('Y-m-d H:i:s').')' : 'sin datos' }}</div></div>
+                    </div>
+                </div>
+                <div class="flx-card">
+                    <div class="flx-card-head"><h2 class="flx-card-title">Operacion</h2></div>
+                    <div class="flx-card-body">
+                        <div class="flx-note">Acciones principales arriba: reiniciar, despertar y reanudar. Las acciones de diagnostico, logs, stop, reset y mantenimiento estan agrupadas en el menu Mas acciones.</div>
                     </div>
                 </div>
             </section>
