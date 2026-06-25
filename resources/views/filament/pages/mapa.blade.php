@@ -157,7 +157,14 @@
                     // s.id es entero del backend; se fuerza a numero para la URL.
                     const tel = '{{ url('admin/telemetria') }}' + '?tableFilters[site_id][value]=' + encodeURIComponent(Number(s.id));
                     let h = '<strong>' + esc(s.code) + '</strong>' + (s.name ? ' — ' + esc(s.name) : '') + '<br>';
-                    h += 'Dispositivos: ' + (s.devices && s.devices.length ? esc(s.devices.join(', ')) : '—') + '<br>';
+                    // FLX-0057: cada dispositivo enlaza a su ficha central (admin/devices/{id}).
+                    const fichaBase = '{{ url('admin/devices') }}';
+                    const devLinks = (s.devices && s.devices.length)
+                        ? s.devices.map(d => (d && d.id)
+                            ? '<a href="' + fichaBase + '/' + encodeURIComponent(Number(d.id)) + '">' + esc(d.code) + '</a>'
+                            : esc(d)).join(', ')
+                        : '—';
+                    h += 'Dispositivos: ' + devLinks + '<br>';
                     if (last) {
                         h += 'Congestión: <b>' + esc(last.congestion) + '</b><br>';
                         h += 'Presión: ' + esc(last.pressure) + ' · Ocup.: ' + esc(last.occupancy) + '<br>';

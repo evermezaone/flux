@@ -2,21 +2,12 @@
 
 namespace App\Filament\Resources\Devices\Tables;
 
-use App\Filament\Actions\DiagnosticDeviceAction;
-use App\Filament\Actions\LogsDeviceActions;
-use App\Filament\Actions\PushDeviceAction;
-use App\Filament\Actions\RestartDeviceAction;
-use App\Filament\Actions\StopAllDeviceAction;
-use App\Models\Command;
+use App\Filament\Resources\Devices\DeviceResource;
 use App\Models\Device;
-use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
-use Filament\Support\Icons\Heroicon;
+use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -34,7 +25,7 @@ class DevicesTable
                     ->label('Dispositivo')
                     ->searchable(),
                 TextColumn::make('model')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 // device_key NO se muestra (es un secreto).
                 TextColumn::make('last_seen_at')
                     ->label('Visto')
@@ -43,6 +34,26 @@ class DevicesTable
                 IconColumn::make('active')
                     ->label('Activo')
                     ->boolean(),
+                // FLX-0057: salud resumida (badge) en el listado compacto.
+                TextColumn::make('health.overall')
+                    ->label('Salud')
+                    ->badge()
+                    ->placeholder('—')
+                    ->color(fn (?string $state): string => match ($state) {
+                        'ok' => 'success',
+                        'warn' => 'warning',
+                        'fail' => 'danger',
+                        default => 'gray',
+                    }),
+                // FLX-0057: version VLS/Sentinel (del bloque apps si existe).
+                TextColumn::make('versiones')
+                    ->label('VLS / Sentinel')
+                    ->placeholder('—')
+                    ->state(fn (Device $record): string => trim(
+                        (data_get($record->health?->device_metrics, 'apps.vls.version_name') ?? ($record->health?->app_version ?? '—'))
+                        .' / '.(data_get($record->health?->device_metrics, 'apps.sentinel.version_name') ?? '—')
+                    ))
+                    ->toggleable(),
                 // FLX-0041: estado del supervisor remoto + por que (que accion se intento).
                 TextColumn::make('supervision.state')
                     ->label('Supervisor')
@@ -59,6 +70,7 @@ class DevicesTable
                         'requiere_intervencion' => 'danger',
                         default => 'gray',
                     }),
+                // FLX-0057: el motivo largo del supervisor sale del listado (vive en la ficha) -> sin scroll horizontal.
                 TextColumn::make('supervision.reason')
                     ->label('Supervisor: motivo / última acción')
                     ->placeholder('—')
@@ -66,22 +78,15 @@ class DevicesTable
                     ->formatStateUsing(fn (?string $state, $record): string => trim(
                         ($record->supervision?->last_action ? $record->supervision->last_action.' · ' : '').((string) ($state ?? ''))
                     ))
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
+            // FLX-0057: click en la fila -> ficha central de gestion del dispositivo.
+            ->recordUrl(fn (Device $record): string => DeviceResource::getUrl('view', ['record' => $record]))
+            // FLX-0057 (Codex R1): listado COMPACTO. La operacion (reiniciar/despertar/detener/reanudar/diagnostico/
+            // logs/comandos) vive en la ficha central (ViewDevice, header), NO como botones por fila -> sin scroll
+            // horizontal. Aca solo abrir la ficha y editar.
             ->recordActions([
-                self::commandAction(),
-                // REQ-0027: reiniciar el equipo (service/app/device) via la cola.
-                RestartDeviceAction::make(fn (Device $record): Device => $record),
-                // REQ-0028: despertar el equipo por push FCM (ping/restart).
-                PushDeviceAction::make(fn (Device $record): Device => $record),
-                // VLS-0052/FLX-0038: kill-switch -> baja VLS + Sentinel.
-                StopAllDeviceAction::make(fn (Device $record): Device => $record),
-                // FLX-0042: diagnostico industrial extendido (get_status/battery/network/...).
-                DiagnosticDeviceAction::make(fn (Device $record): Device => $record),
-                // FLX-0039: logs de campo -> solicitar / limpiar / descargar el ultimo.
-                LogsDeviceActions::requestLogs(fn (Device $record): Device => $record),
-                LogsDeviceActions::clearLogs(fn (Device $record): Device => $record),
-                LogsDeviceActions::downloadLatest(fn (Device $record): Device => $record),
+                ViewAction::make(),
                 EditAction::make(),
             ])
             ->toolbarActions([
@@ -89,58 +94,5 @@ class DevicesTable
                     DeleteBulkAction::make(),
                 ]),
             ]);
-    }
-
-    /** Encolar un comando al dispositivo (usa la cola de REQ-0004). */
-    private static function commandAction(): Action
-    {
-        return Action::make('comando')
-            ->label('Comando')
-            ->icon(Heroicon::OutlinedPaperAirplane)
-            ->modalHeading('Encolar comando al dispositivo')
-            ->schema([
-                Select::make('cmd')
-                    ->label('Comando')
-                    ->options([
-                        'snapshot' => 'snapshot',
-                        'publish_clip' => 'publish_clip',
-                        'delete_clip' => 'delete_clip',
-                        'delete_all' => 'delete_all',
-                    ])
-                    ->required(),
-                TextInput::make('ts')->label('ts (para publish_clip)'),
-                TextInput::make('file')->label('file (para delete_clip)'),
-            ])
-            ->action(function (array $data, Device $record): void {
-                $cmd = $data['cmd'];
-
-                if ($cmd === 'publish_clip' && blank($data['ts'] ?? null)) {
-                    Notification::make()->title('publish_clip requiere ts')->danger()->send();
-
-                    return;
-                }
-                if ($cmd === 'delete_clip' && blank($data['file'] ?? null)) {
-                    Notification::make()->title('delete_clip requiere file')->danger()->send();
-
-                    return;
-                }
-
-                $params = [];
-                if (filled($data['ts'] ?? null)) {
-                    $params['ts'] = $data['ts'];
-                }
-                if (filled($data['file'] ?? null)) {
-                    $params['file'] = $data['file'];
-                }
-
-                Command::create([
-                    'device_id' => $record->id,
-                    'cmd' => $cmd,
-                    'params' => $params ?: null,
-                    'status' => 'pending',
-                ]);
-
-                Notification::make()->title('Comando encolado')->success()->send();
-            });
     }
 }

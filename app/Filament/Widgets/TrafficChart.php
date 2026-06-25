@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 /** Serie temporal de trafico por hora, filtrable por sitio (REQ-0011). */
 class TrafficChart extends ChartWidget
 {
+    protected static ?int $sort = 3; // FLX-0055: debajo del resumen numerico.
+
     protected ?string $heading = 'Trafico por hora (7 dias)';
 
     public ?string $filter = null;

@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 /** Serie temporal de salud del equipo por hora, filtrable por sitio (REQ-0011). */
 class EquipmentChart extends ChartWidget
 {
+    protected static ?int $sort = 2; // FLX-0055: debajo del resumen numerico.
+
     protected ?string $heading = 'Salud del equipo por hora (7 dias)';
 
     public ?string $filter = null;

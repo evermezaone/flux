@@ -39,7 +39,9 @@ class MapController extends Controller
                 'lat' => $site->lat !== null ? (float) $site->lat : null,
                 'lng' => $site->lng !== null ? (float) $site->lng : null,
                 'location_manual' => (bool) $site->location_manual,
-                'devices' => $site->devices()->pluck('code')->all(),
+                // FLX-0057: id+code para que el popup del mapa enlace a la ficha central del dispositivo.
+                'devices' => $site->devices()->get(['id', 'code'])
+                    ->map(fn ($d) => ['id' => $d->id, 'code' => $d->code])->all(),
                 'last' => $last ? [
                     'ts' => optional($last->ts)->toIso8601String(),
                     'zone' => $last->zone,
