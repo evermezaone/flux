@@ -55,11 +55,6 @@ class ViewDevice extends ViewRecord
         ];
     }
 
-    public function getCachedHeaderActions(): array
-    {
-        return [];
-    }
-
     protected function getViewData(): array
     {
         $device = $this->record->loadMissing([

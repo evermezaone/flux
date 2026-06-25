@@ -218,26 +218,8 @@
                     </div>
                 </div>
 
-                <div class="flx-actionbar">
-                    <div>
-                        <div class="flx-action-title">Comandos del equipo</div>
-                        <div class="flx-action-sub">Acciones remotas disponibles para este nodo.</div>
-                    </div>
-                    <div class="flx-action-buttons">
-                        <button type="button" class="flx-action-btn danger" wire:click="mountAction('reiniciar')">Reiniciar</button>
-                        <button type="button" class="flx-action-btn warn" wire:click="mountAction('despertar')">Despertar</button>
-                        <button type="button" class="flx-action-btn ok" wire:click="mountAction('reanudar')">Reanudar</button>
-                        {{-- FLX: set completo de comandos (igualado con la ficha V2). --}}
-                        <button type="button" class="flx-action-btn danger" wire:click="mountAction('detener_todo')">Detener todo</button>
-                        <button type="button" class="flx-action-btn gray" wire:click="mountAction('diagnostico')">Diagnostico</button>
-                        <button type="button" class="flx-action-btn gray" wire:click="mountAction('pedir_diagnostico')">Pedir diagnostico</button>
-                        <button type="button" class="flx-action-btn gray" wire:click="mountAction('solicitar_logs')">Solicitar logs</button>
-                        <button type="button" class="flx-action-btn gray" wire:click="mountAction('descargar_logs')">Ultimo log</button>
-                        <button type="button" class="flx-action-btn gray" wire:click="mountAction('limpiar_logs')">Limpiar logs</button>
-                        <button type="button" class="flx-action-btn gray" wire:click="mountAction('reset_diagnostico')">Reset diagnosticos</button>
-                        <button type="button" class="flx-action-btn gray" wire:click="mountAction('mantenimiento')">Mantenimiento</button>
-                    </div>
-                </div>
+                {{-- FLX-0059 (R1): los comandos viven en el header de Filament (Reiniciar/Despertar/Reanudar +
+                     desplegable "Mas acciones"), igual que la ficha V2. Se quita la barra de botones propia. --}}
             </section>
 
             <nav class="flx-tabs" aria-label="Device tabs">
