@@ -45,10 +45,10 @@
 
         $pill = fn ($text, $tone) => '<span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset '.$tone.'">'.e($text).'</span>';
         $metric = function ($label, $value, $hint = null) {
-            return '<div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/5">'.
-                '<div class="text-xs font-medium text-gray-500 dark:text-gray-400">'.e($label).'</div>'.
-                '<div class="mt-1 truncate text-base font-semibold text-gray-950 dark:text-white">'.$value.'</div>'.
-                ($hint ? '<div class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">'.e($hint).'</div>' : '').
+            return '<div class="rounded-lg border border-zinc-800 bg-white/5 px-4 py-3">'.
+                '<div class="text-xs font-medium text-zinc-400">'.e($label).'</div>'.
+                '<div class="mt-1 truncate text-base font-semibold text-white">'.$value.'</div>'.
+                ($hint ? '<div class="mt-1 truncate text-xs text-zinc-400">'.e($hint).'</div>' : '').
             '</div>';
         };
         $field = function ($label, $value) {
@@ -82,9 +82,9 @@
         ];
     @endphp
 
-    <div x-data="{ tab: 'resumen' }" class="space-y-6">
-        <section class="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
-            <div class="border-b border-gray-100 px-5 py-5 dark:border-white/10">
+    <div x-data="{ tab: 'resumen' }" class="space-y-5">
+        <section class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
+            <div class="bg-zinc-950 px-5 py-5 text-white">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
@@ -92,10 +92,10 @@
                             {!! $pill('VLS '.$fgLabel, $fgTone) !!}
                             {!! $pill($device->active ? 'activo' : 'inactivo', $device->active ? 'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-500/10 dark:text-green-300' : 'bg-gray-50 text-gray-600 ring-gray-600/20 dark:bg-white/5 dark:text-gray-300') !!}
                         </div>
-                        <h1 class="mt-3 break-words text-2xl font-semibold text-gray-950 dark:text-white">
+                        <h1 class="mt-3 break-words text-3xl font-semibold tracking-normal">
                             {{ $device->code }}
                         </h1>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        <p class="mt-1 text-sm text-zinc-300">
                             {{ $site?->code ?? 'sin sitio' }}@if($device->model) - {{ $device->model }}@endif
                         </p>
                     </div>
@@ -108,22 +108,22 @@
                 </div>
             </div>
 
-            <div class="grid gap-3 px-5 py-4 md:grid-cols-3">
-                <div class="rounded-lg bg-gray-50 p-4 dark:bg-white/5">
+            <div class="grid divide-y divide-gray-100 border-b border-gray-100 dark:divide-white/10 dark:border-white/10 md:grid-cols-3 md:divide-x md:divide-y-0">
+                <div class="p-5">
                     <div class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Supervision remota</div>
                     <div class="mt-1 text-sm font-semibold text-gray-950 dark:text-white">{{ $supervision?->state ?? 'sin estado' }}</div>
                     <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         {{ $supervision?->reason ?? 'sin motivo activo' }}
                     </div>
                 </div>
-                <div class="rounded-lg bg-gray-50 p-4 dark:bg-white/5">
+                <div class="p-5">
                     <div class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Prerequisitos</div>
                     <div class="mt-1">{!! $pill($reqOk === true ? 'OK' : ($requirements ? 'requiere atencion' : 'sin datos'), $reqTone) !!}</div>
                     <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Criticos: {{ $requirements?->critical_count ?? 0 }} - Warnings: {{ $requirements?->warning_count ?? 0 }}
                     </div>
                 </div>
-                <div class="rounded-lg bg-gray-50 p-4 dark:bg-white/5">
+                <div class="p-5">
                     <div class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Estabilidad</div>
                     <div class="mt-1">{!! $pill($stabilityStatus, $stabilityTone) !!}</div>
                     <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -133,13 +133,13 @@
             </div>
         </section>
 
-        <nav class="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-white/10" aria-label="Device tabs">
+        <nav class="flex gap-1 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-white/10 dark:bg-white/5" aria-label="Device tabs">
             @foreach ($tabs as $key => $label)
                 <button type="button" @click="tab = '{{ $key }}'"
                     :class="tab === '{{ $key }}'
-                        ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
-                    class="whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium">
+                        ? 'bg-white text-gray-950 shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:text-white dark:ring-white/10'
+                        : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
+                    class="whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition">
                     {{ $label }}
                 </button>
             @endforeach

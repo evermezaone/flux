@@ -12,7 +12,9 @@ use App\Filament\Actions\StabilityDeviceActions;
 use App\Filament\Actions\StopAllDeviceAction;
 use App\Filament\Resources\Devices\DeviceResource;
 use App\Models\DeviceLog;
+use Filament\Actions\ActionGroup;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Support\Icons\Heroicon;
 
 /**
  * Central device console: operation summary, health, commands, logs, media and telemetry.
@@ -35,15 +37,21 @@ class ViewDevice extends ViewRecord
         return [
             RestartDeviceAction::make($d),
             PushDeviceAction::make($d),
-            StopAllDeviceAction::make($d),
             ResumeDeviceAction::make($d),
-            DiagnosticDeviceAction::make($d),
-            StabilityDeviceActions::requestDiagnostics($d),
-            LogsDeviceActions::requestLogs($d),
-            LogsDeviceActions::clearLogs($d),
-            LogsDeviceActions::downloadLatest($d),
-            StabilityDeviceActions::resetDiagnostics($d),
-            MaintenanceDeviceAction::make($d),
+            ActionGroup::make([
+                StopAllDeviceAction::make($d),
+                DiagnosticDeviceAction::make($d),
+                StabilityDeviceActions::requestDiagnostics($d),
+                LogsDeviceActions::requestLogs($d),
+                LogsDeviceActions::downloadLatest($d),
+                LogsDeviceActions::clearLogs($d),
+                StabilityDeviceActions::resetDiagnostics($d),
+                MaintenanceDeviceAction::make($d),
+            ])
+                ->label('Mas acciones')
+                ->icon(Heroicon::OutlinedEllipsisVertical)
+                ->color('gray')
+                ->button(),
         ];
     }
 
