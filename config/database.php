@@ -84,22 +84,6 @@ return [
             ]) : [],
         ],
 
-        // FLX-0054: BD de COORDINACION (agentes/REQ), separada de la BD de la app. Solo lectura, para la vista
-        // de seguimiento de agentes. Si no se configura COORD_DB_*, la vista lo informa sin romper el panel.
-        'coordination' => [
-            'driver' => 'mysql',
-            'host' => env('COORD_DB_HOST', env('DB_HOST', '127.0.0.1')),
-            'port' => env('COORD_DB_PORT', env('DB_PORT', '3306')),
-            'database' => env('COORD_DB_DATABASE', ''),
-            'username' => env('COORD_DB_USERNAME', ''),
-            'password' => env('COORD_DB_PASSWORD', ''),
-            'charset' => 'utf8mb4',
-            'collation' => 'utf8mb4_unicode_ci',
-            'prefix' => '',
-            'strict' => true,
-            'engine' => null,
-        ],
-
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
