@@ -32,6 +32,11 @@ class CommandDispatcher
         if ($cmd === 'restart' && ($params['level'] ?? null) === 'device') {
             $channel = 'fcm';
         }
+        // VLS-0084 / FLX-0053: un equipo detenido (stop_all) NO consulta la cola (polling apagado), pero FCM si
+        // arranca el proceso. El "Reanudar" debe ir por FCM puro para que llegue al equipo detenido.
+        if (in_array($cmd, ['resume', 'start_all'], true)) {
+            $channel = 'fcm';
+        }
 
         $command = Command::create([
             'device_id' => $device->id,

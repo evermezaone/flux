@@ -21,7 +21,9 @@ class CommandController extends Controller
         // FLX-0042: diagnostico industrial extendido (el equipo los ejecuta en VLS-0060).
         'get_status', 'get_apps', 'get_permissions', 'get_device_policy', 'get_battery', 'get_network', 'get_foreground_state',
         // FLX-0048: diagnostico/recuperacion de estabilidad (el equipo los ejecuta en VLS-0068).
-        'get_diagnostics', 'reset_diagnostics', 'get_stability_events'];
+        'get_diagnostics', 'reset_diagnostics', 'get_stability_events',
+        // FLX-0053/VLS-0084: contraparte remota del kill-switch -> reanudar a operacion plena (por FCM).
+        'resume', 'start_all'];
 
     /** Operador (panel) encola un comando. Auth de operador (sesion). */
     public function enqueue(Request $request): JsonResponse

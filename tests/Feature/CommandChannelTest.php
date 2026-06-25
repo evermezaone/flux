@@ -146,6 +146,38 @@ class CommandChannelTest extends TestCase
         $this->assertDatabaseHas('commands', ['device_id' => $d->id, 'cmd' => 'stop_all', 'channel' => 'poll']);
     }
 
+    public function test_resume_se_fuerza_a_fcm(): void
+    {
+        // FLX-0053/VLS-0084: 'resume' (contraparte de stop_all) se fuerza a FCM aunque se pida poll/auto,
+        // porque un equipo detenido NO consulta la cola; FCM si arranca el proceso.
+        $user = User::factory()->create();
+        $d = $this->device(key: 'k-res', code: 'tel-res', token: 'tok-res');
+
+        $mock = Mockery::mock(FcmSender::class);
+        $mock->shouldReceive('send')->once()->andReturn(true);
+        $this->app->instance(FcmSender::class, $mock);
+
+        $this->actingAs($user)->postJson('/api/v1/commands', [
+            'device' => $d->code, 'cmd' => 'resume', 'channel' => 'poll',
+        ])->assertSuccessful()->assertJsonPath('channel', 'fcm')->assertJsonPath('pushed', true);
+
+        $this->assertDatabaseHas('commands', ['device_id' => $d->id, 'cmd' => 'resume', 'channel' => 'fcm']);
+    }
+
+    public function test_resume_fcm_no_se_entrega_por_polling(): void
+    {
+        // 'resume' forzado fcm: NO sale en el pull (un equipo detenido no consulta la cola; llega por push).
+        $d = $this->device(key: 'k-res2', code: 'tel-res2', token: 'tok-res2');
+        $mock = Mockery::mock(FcmSender::class);
+        $mock->shouldReceive('send')->andReturn(true);
+        $this->app->instance(FcmSender::class, $mock);
+
+        app(\App\Services\CommandDispatcher::class)->dispatch($d, 'resume', [], 'auto');
+
+        $res = $this->getJson('/api/v1/commands', ['X-Device-Key' => 'k-res2'])->assertOk()->json('commands');
+        $this->assertCount(0, $res);
+    }
+
     public function test_ack_guarda_exec_channel(): void
     {
         $d = $this->device(key: 'k-ack');

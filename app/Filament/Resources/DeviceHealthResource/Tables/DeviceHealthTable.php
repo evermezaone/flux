@@ -7,6 +7,7 @@ use App\Filament\Actions\LogsDeviceActions;
 use App\Filament\Actions\MaintenanceDeviceAction;
 use App\Filament\Actions\PushDeviceAction;
 use App\Filament\Actions\RestartDeviceAction;
+use App\Filament\Actions\ResumeDeviceAction;
 use App\Filament\Actions\StabilityDeviceActions;
 use App\Filament\Actions\StopAllDeviceAction;
 use App\Models\DeviceHealth;
@@ -185,6 +186,8 @@ class DeviceHealthTable
                 PushDeviceAction::make(fn (DeviceHealth $record) => $record->device),
                 // VLS-0052/FLX-0038: kill-switch -> baja VLS + Sentinel.
                 StopAllDeviceAction::make(fn (DeviceHealth $record) => $record->device),
+                // VLS-0084/FLX-0053: contraparte remota -> reanuda a operacion plena por FCM (sin tocar el equipo).
+                ResumeDeviceAction::make(fn (DeviceHealth $record) => $record->device),
                 // FLX-0042: diagnostico industrial extendido.
                 DiagnosticDeviceAction::make(fn (DeviceHealth $record) => $record->device),
                 // FLX-0039: logs de campo.
