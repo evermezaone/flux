@@ -4,19 +4,18 @@ namespace App\Filament\Resources\Devices\Pages;
 
 use App\Filament\Actions\DiagnosticDeviceAction;
 use App\Filament\Actions\LogsDeviceActions;
+use App\Filament\Actions\MaintenanceDeviceAction;
 use App\Filament\Actions\PushDeviceAction;
 use App\Filament\Actions\RestartDeviceAction;
 use App\Filament\Actions\ResumeDeviceAction;
+use App\Filament\Actions\StabilityDeviceActions;
 use App\Filament\Actions\StopAllDeviceAction;
 use App\Filament\Resources\Devices\DeviceResource;
 use App\Models\DeviceLog;
 use Filament\Resources\Pages\ViewRecord;
 
 /**
- * FLX-0057: ficha central de gestion de un dispositivo. Punto unico de operacion: resumen, salud, comandos
- * (acciones en el header, reusando las existentes), historial de comandos, logs, media y telemetria reciente.
- * Tokens/keys ocultos por defecto. Vista propia (Blade) por pestanas, usable en mobile. La abren el listado y
- * el mapa (misma ruta).
+ * Central device console: operation summary, health, commands, logs, media and telemetry.
  */
 class ViewDevice extends ViewRecord
 {
@@ -26,10 +25,9 @@ class ViewDevice extends ViewRecord
 
     public function getTitle(): string
     {
-        return 'Ficha · '.$this->record->code;
+        return 'Device '.$this->record->code;
     }
 
-    /** Comandos disponibles desde la ficha (reusan las acciones + confirmaciones existentes). */
     protected function getHeaderActions(): array
     {
         $d = fn () => $this->record;
@@ -40,24 +38,38 @@ class ViewDevice extends ViewRecord
             StopAllDeviceAction::make($d),
             ResumeDeviceAction::make($d),
             DiagnosticDeviceAction::make($d),
+            StabilityDeviceActions::requestDiagnostics($d),
             LogsDeviceActions::requestLogs($d),
             LogsDeviceActions::clearLogs($d),
             LogsDeviceActions::downloadLatest($d),
+            StabilityDeviceActions::resetDiagnostics($d),
+            MaintenanceDeviceAction::make($d),
         ];
     }
 
     protected function getViewData(): array
     {
-        $device = $this->record->loadMissing(['site', 'health']);
+        $device = $this->record->loadMissing([
+            'site',
+            'health',
+            'supervision',
+            'requirementState',
+            'stabilityState',
+        ]);
 
         $commands = $device->commands()->latest('id')->limit(20)->get();
         $lastLog = DeviceLog::where('device_id', $device->id)->latest('reported_at')->first();
         $media = $device->media()->where('available', true)->latest('ts_start')->limit(12)->get();
         $telemetry = $device->telemetry()->latest('ts')->limit(8)->get();
+        $stabilityEvents = $device->stabilityEvents()->latest('occurred_at')->limit(10)->get();
 
         return [
             'device' => $device,
             'health' => $device->health,
+            'supervision' => $device->supervision,
+            'requirements' => $device->requirementState,
+            'stability' => $device->stabilityState,
+            'stabilityEvents' => $stabilityEvents,
             'commands' => $commands,
             'lastLog' => $lastLog,
             'media' => $media,
