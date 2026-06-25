@@ -57,6 +57,21 @@
                 '<dd class="text-sm text-gray-950 dark:text-white sm:col-span-2">'.$value.'</dd>'.
             '</div>';
         };
+        $fmt = function ($value) {
+            if ($value === null || $value === '') {
+                return 'sin datos';
+            }
+
+            if (is_bool($value)) {
+                return $value ? 'si' : 'no';
+            }
+
+            if (is_array($value) || is_object($value)) {
+                return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            }
+
+            return (string) $value;
+        };
         $tabs = [
             'resumen' => 'Resumen',
             'salud' => 'Salud',
@@ -163,10 +178,10 @@
                 <dl class="mt-4">
                     {!! $field('Estado global', '<span class="uppercase">'.e($status).'</span>') !!}
                     {!! $field('App al frente', e($fgLabel)) !!}
-                    {!! $field('Red', e(data_get($hm, 'network.type', 'sin datos'))) !!}
-                    {!! $field('Sentinel', e(data_get($hm, 'sentinel.sentinel_watch_status', data_get($hm, 'sentinel_watch_status', 'sin datos')))) !!}
-                    {!! $field('Device Owner', e(data_get($hm, 'device_owner.enabled', data_get($hm, 'device_owner', 'sin datos')))) !!}
-                    {!! $field('Lock task', e(data_get($hm, 'lock_task.active', data_get($hm, 'lock_task', 'sin datos')))) !!}
+                    {!! $field('Red', e($fmt(data_get($hm, 'network.type', data_get($hm, 'network'))))) !!}
+                    {!! $field('Sentinel', e($fmt(data_get($hm, 'sentinel.sentinel_watch_status', data_get($hm, 'sentinel_watch_status', data_get($hm, 'sentinel')))))) !!}
+                    {!! $field('Device Owner', e($fmt(data_get($hm, 'device_owner.enabled', data_get($hm, 'device_owner'))))) !!}
+                    {!! $field('Lock task', e($fmt(data_get($hm, 'lock_task.active', data_get($hm, 'lock_task'))))) !!}
                     {!! $field('Intervencion', !empty($hm['requires_intervention']) ? '<span class="text-red-600 dark:text-red-400">requerida</span>' : 'no requerida') !!}
                     {!! $field('Uptime', $health?->uptime_s ? number_format($health->uptime_s).' s' : '<span class="text-gray-400">sin datos</span>') !!}
                 </dl>
