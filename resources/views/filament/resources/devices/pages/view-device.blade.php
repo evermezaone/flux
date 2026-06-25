@@ -1,12 +1,12 @@
 <x-filament-panels::page>
     @php
         $hm = $health?->device_metrics ?? [];
-        $subsystems = $health?->subsystems ?? [];
         $site = $device->site;
         $status = $health?->overall ?? 'sin datos';
         $reportedAt = $health?->reported_at;
         $lastSeen = $device->last_seen_at;
         $fg = data_get($hm, 'app_foreground');
+        $fgLabel = $fg === null ? 'desconocido' : ($fg ? 'al frente' : 'background');
         $battery = data_get($hm, 'battery_pct');
         $vlsVer = data_get($hm, 'apps.vls.version_name') ?? ($health?->app_version ?? null);
         $vlsCode = data_get($hm, 'apps.vls.version_code');
@@ -14,64 +14,28 @@
         $senCode = data_get($hm, 'apps.sentinel.version_code');
         $maskKey = $device->device_key ? (substr($device->device_key, 0, 3).'***'.substr($device->device_key, -2)) : null;
 
-        $statusTone = match ($status) {
-            'ok' => 'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-500/10 dark:text-green-300 dark:ring-green-500/30',
-            'warn' => 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30',
-            'fail' => 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/30',
-            default => 'bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-white/5 dark:text-gray-300 dark:ring-white/10',
-        };
-
-        $fgLabel = $fg === null ? 'desconocido' : ($fg ? 'al frente' : 'background');
-        $fgTone = $fg === true
-            ? 'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-500/10 dark:text-green-300'
-            : ($fg === false
-                ? 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300'
-                : 'bg-gray-50 text-gray-600 ring-gray-600/20 dark:bg-white/5 dark:text-gray-300');
-
-        $reqOk = $requirements?->ok;
-        $reqTone = $reqOk === true
-            ? 'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-500/10 dark:text-green-300'
-            : ($requirements
-                ? 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-500/10 dark:text-red-300'
-                : 'bg-gray-50 text-gray-600 ring-gray-600/20 dark:bg-white/5 dark:text-gray-300');
-
-        $stabilityStatus = $stability?->stability_status ?? 'sin datos';
-        $stabilityTone = match ($stabilityStatus) {
-            'ok' => 'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-500/10 dark:text-green-300',
-            'warn' => 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300',
-            'critical' => 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-500/10 dark:text-red-300',
-            default => 'bg-gray-50 text-gray-600 ring-gray-600/20 dark:bg-white/5 dark:text-gray-300',
-        };
-
-        $pill = fn ($text, $tone) => '<span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset '.$tone.'">'.e($text).'</span>';
-        $metric = function ($label, $value, $hint = null) {
-            return '<div class="rounded-lg border border-zinc-800 bg-white/5 px-4 py-3">'.
-                '<div class="text-xs font-medium text-zinc-400">'.e($label).'</div>'.
-                '<div class="mt-1 truncate text-base font-semibold text-white">'.$value.'</div>'.
-                ($hint ? '<div class="mt-1 truncate text-xs text-zinc-400">'.e($hint).'</div>' : '').
-            '</div>';
-        };
-        $field = function ($label, $value) {
-            return '<div class="grid gap-1 border-b border-gray-100 py-2 last:border-0 dark:border-white/5 sm:grid-cols-3 sm:gap-4">'.
-                '<dt class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">'.e($label).'</dt>'.
-                '<dd class="text-sm text-gray-950 dark:text-white sm:col-span-2">'.$value.'</dd>'.
-            '</div>';
-        };
         $fmt = function ($value) {
-            if ($value === null || $value === '') {
-                return 'sin datos';
-            }
-
-            if (is_bool($value)) {
-                return $value ? 'si' : 'no';
-            }
-
-            if (is_array($value) || is_object($value)) {
-                return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            }
-
+            if ($value === null || $value === '') return 'sin datos';
+            if (is_bool($value)) return $value ? 'si' : 'no';
+            if (is_array($value) || is_object($value)) return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             return (string) $value;
         };
+
+        $healthTone = match ($status) {
+            'ok' => 'ok',
+            'warn' => 'warn',
+            'fail' => 'fail',
+            default => 'muted',
+        };
+        $fgTone = $fg === true ? 'ok' : ($fg === false ? 'warn' : 'muted');
+        $reqTone = $requirements?->ok === true ? 'ok' : ($requirements ? 'fail' : 'muted');
+        $stabilityTone = match ($stability?->stability_status) {
+            'ok' => 'ok',
+            'warn' => 'warn',
+            'critical' => 'fail',
+            default => 'muted',
+        };
+
         $tabs = [
             'resumen' => 'Resumen',
             'salud' => 'Salud',
@@ -82,261 +46,276 @@
         ];
     @endphp
 
-    <div x-data="{ tab: 'resumen' }" class="space-y-5">
-        <section class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
-            <div class="bg-zinc-950 px-5 py-5 text-white">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div class="min-w-0">
-                        <div class="flex flex-wrap items-center gap-2">
-                            {!! $pill(strtoupper($status), $statusTone) !!}
-                            {!! $pill('VLS '.$fgLabel, $fgTone) !!}
-                            {!! $pill($device->active ? 'activo' : 'inactivo', $device->active ? 'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-500/10 dark:text-green-300' : 'bg-gray-50 text-gray-600 ring-gray-600/20 dark:bg-white/5 dark:text-gray-300') !!}
+    <style>
+        .flx-device { --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --soft:#f9fafb; --panel:#fff; --dark:#111827; }
+        .flx-device * { box-sizing: border-box; }
+        .flx-shell { display: grid; gap: 18px; }
+        .flx-hero { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+        .flx-hero-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 560px); gap: 24px; padding: 24px; color: #fff; background: #0f172a; }
+        .flx-eyebrow { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+        .flx-title { margin:0; font-size: 30px; line-height: 1.15; font-weight: 750; letter-spacing: 0; }
+        .flx-subtitle { margin-top:6px; color:#cbd5e1; font-size:14px; }
+        .flx-pill { display:inline-flex; align-items:center; min-height:24px; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:650; border:1px solid transparent; }
+        .flx-pill.ok { color:#166534; background:#dcfce7; border-color:#86efac; }
+        .flx-pill.warn { color:#92400e; background:#fef3c7; border-color:#fcd34d; }
+        .flx-pill.fail { color:#991b1b; background:#fee2e2; border-color:#fecaca; }
+        .flx-pill.muted { color:#374151; background:#f3f4f6; border-color:#e5e7eb; }
+        .flx-metrics { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; }
+        .flx-metric { border:1px solid rgba(148,163,184,.28); border-radius:8px; padding:12px; background:rgba(255,255,255,.06); min-width:0; }
+        .flx-metric-label { color:#94a3b8; font-size:12px; font-weight:650; }
+        .flx-metric-value { margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#fff; font-size:16px; font-weight:750; }
+        .flx-metric-hint { margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#94a3b8; font-size:12px; }
+        .flx-status-row { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top:1px solid var(--line); }
+        .flx-status-card { padding:18px 20px; border-right:1px solid var(--line); min-width:0; }
+        .flx-status-card:last-child { border-right:0; }
+        .flx-kicker { color:var(--muted); font-size:12px; font-weight:750; text-transform:uppercase; }
+        .flx-status-main { margin-top:6px; color:var(--ink); font-size:15px; font-weight:750; }
+        .flx-status-sub { margin-top:4px; color:var(--muted); font-size:13px; line-height:1.35; }
+        .flx-tabs { display:flex; gap:4px; padding:5px; border:1px solid var(--line); border-radius:10px; background:var(--soft); overflow-x:auto; }
+        .flx-tab { appearance:none; border:0; border-radius:7px; background:transparent; color:var(--muted); cursor:pointer; padding:9px 13px; white-space:nowrap; font-size:14px; font-weight:700; }
+        .flx-tab.active { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(15,23,42,.08); outline:1px solid var(--line); }
+        .flx-grid { display:grid; grid-template-columns: 1.35fr .65fr; gap:16px; }
+        .flx-grid-2 { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:16px; }
+        .flx-card { border:1px solid var(--line); border-radius:10px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); min-width:0; }
+        .flx-card-head { padding:16px 18px; border-bottom:1px solid var(--line); }
+        .flx-card-title { margin:0; color:var(--ink); font-size:15px; font-weight:800; }
+        .flx-card-body { padding:16px 18px; }
+        .flx-fields { display:grid; gap:0; }
+        .flx-field { display:grid; grid-template-columns: 180px minmax(0,1fr); gap:14px; padding:10px 0; border-bottom:1px solid #f1f5f9; }
+        .flx-field:last-child { border-bottom:0; }
+        .flx-label { color:var(--muted); font-size:12px; font-weight:800; text-transform:uppercase; }
+        .flx-value { min-width:0; overflow-wrap:anywhere; color:var(--ink); font-size:14px; }
+        .flx-note { color:var(--muted); font-size:14px; line-height:1.5; }
+        .flx-list { display:grid; gap:0; }
+        .flx-item { padding:14px 18px; border-bottom:1px solid #f1f5f9; }
+        .flx-item:last-child { border-bottom:0; }
+        .flx-item-top { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; }
+        .flx-item-title { color:var(--ink); font-size:14px; font-weight:750; overflow-wrap:anywhere; }
+        .flx-item-meta { margin-top:5px; color:var(--muted); font-size:12px; display:flex; flex-wrap:wrap; gap:12px; }
+        .flx-empty { padding:22px; text-align:center; color:var(--muted); font-size:14px; }
+        .flx-actions-inline { display:flex; gap:8px; flex-wrap:wrap; }
+        .flx-link-btn { display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:7px 12px; border-radius:8px; border:1px solid var(--line); color:var(--ink); background:#fff; font-size:13px; font-weight:700; text-decoration:none; }
+        .flx-link-btn.primary { border-color:#2563eb; background:#2563eb; color:#fff; }
+        .flx-result { margin-top:10px; border-radius:8px; background:#f8fafc; padding:10px; color:#334155; font-size:12px; line-height:1.45; }
+        [x-cloak] { display:none !important; }
+        @media (max-width: 1100px) { .flx-hero-top, .flx-grid, .flx-grid-2 { grid-template-columns:1fr; } .flx-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+        @media (max-width: 700px) { .flx-status-row { grid-template-columns:1fr; } .flx-status-card { border-right:0; border-bottom:1px solid var(--line); } .flx-status-card:last-child { border-bottom:0; } .flx-field { grid-template-columns:1fr; gap:4px; } .flx-title { font-size:24px; } }
+    </style>
+
+    <div class="flx-device" x-data="{ tab: 'resumen' }">
+        <div class="flx-shell">
+            <section class="flx-hero">
+                <div class="flx-hero-top">
+                    <div>
+                        <div class="flx-eyebrow">
+                            <span class="flx-pill {{ $healthTone }}">{{ strtoupper($status) }}</span>
+                            <span class="flx-pill {{ $fgTone }}">VLS {{ $fgLabel }}</span>
+                            <span class="flx-pill {{ $device->active ? 'ok' : 'muted' }}">{{ $device->active ? 'activo' : 'inactivo' }}</span>
                         </div>
-                        <h1 class="mt-3 break-words text-3xl font-semibold tracking-normal">
-                            {{ $device->code }}
-                        </h1>
-                        <p class="mt-1 text-sm text-zinc-300">
-                            {{ $site?->code ?? 'sin sitio' }}@if($device->model) - {{ $device->model }}@endif
-                        </p>
+                        <h1 class="flx-title">{{ $device->code }}</h1>
+                        <div class="flx-subtitle">{{ $site?->code ?? 'sin sitio' }}@if($device->model) - {{ $device->model }}@endif</div>
                     </div>
-                    <div class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 lg:min-w-[34rem]">
-                        {!! $metric('Ultimo latido', $reportedAt ? e($reportedAt->diffForHumans()) : '<span class="text-gray-400">sin datos</span>', $reportedAt?->format('Y-m-d H:i:s')) !!}
-                        {!! $metric('Bateria', $battery !== null ? e($battery).'%' : '<span class="text-gray-400">sin datos</span>') !!}
-                        {!! $metric('VLS', $vlsVer ? e($vlsVer) : '<span class="text-gray-400">sin version</span>', $vlsCode ? 'code '.$vlsCode : null) !!}
-                        {!! $metric('Sentinel', $senVer ? e($senVer) : '<span class="text-gray-400">sin version</span>', $senCode ? 'code '.$senCode : null) !!}
-                    </div>
-                </div>
-            </div>
 
-            <div class="grid divide-y divide-gray-100 border-b border-gray-100 dark:divide-white/10 dark:border-white/10 md:grid-cols-3 md:divide-x md:divide-y-0">
-                <div class="p-5">
-                    <div class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Supervision remota</div>
-                    <div class="mt-1 text-sm font-semibold text-gray-950 dark:text-white">{{ $supervision?->state ?? 'sin estado' }}</div>
-                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        {{ $supervision?->reason ?? 'sin motivo activo' }}
-                    </div>
-                </div>
-                <div class="p-5">
-                    <div class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Prerequisitos</div>
-                    <div class="mt-1">{!! $pill($reqOk === true ? 'OK' : ($requirements ? 'requiere atencion' : 'sin datos'), $reqTone) !!}</div>
-                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Criticos: {{ $requirements?->critical_count ?? 0 }} - Warnings: {{ $requirements?->warning_count ?? 0 }}
-                    </div>
-                </div>
-                <div class="p-5">
-                    <div class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Estabilidad</div>
-                    <div class="mt-1">{!! $pill($stabilityStatus, $stabilityTone) !!}</div>
-                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Crash {{ $stability?->crash_count_24h ?? 0 }} - ANR {{ $stability?->anr_count_24h ?? 0 }} - UI {{ $stability?->ui_freeze_count_24h ?? 0 }}
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <nav class="flex gap-1 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-white/10 dark:bg-white/5" aria-label="Device tabs">
-            @foreach ($tabs as $key => $label)
-                <button type="button" @click="tab = '{{ $key }}'"
-                    :class="tab === '{{ $key }}'
-                        ? 'bg-white text-gray-950 shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:text-white dark:ring-white/10'
-                        : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"
-                    class="whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition">
-                    {{ $label }}
-                </button>
-            @endforeach
-        </nav>
-
-        <section x-show="tab === 'resumen'" class="grid gap-4 lg:grid-cols-3">
-            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-gray-900 lg:col-span-2">
-                <h2 class="text-sm font-semibold text-gray-950 dark:text-white">Identidad y conectividad</h2>
-                <dl class="mt-4">
-                    {!! $field('Codigo', e($device->code)) !!}
-                    {!! $field('Sitio', e($site?->code ?? 'sin sitio')) !!}
-                    {!! $field('Modelo', e($device->model ?? 'sin modelo')) !!}
-                    {!! $field('Device key', $maskKey ? '<span class="font-mono">'.e($maskKey).'</span>' : '<span class="text-gray-400">sin key</span>') !!}
-                    {!! $field('FCM token', $device->fcm_token ? '<span class="text-green-600 dark:text-green-400">presente</span>' : '<span class="text-amber-600 dark:text-amber-400">ausente</span>') !!}
-                    {!! $field('FCM actualizado', $device->fcm_token_at ? e($device->fcm_token_at->diffForHumans()) : '<span class="text-gray-400">sin datos</span>') !!}
-                    {!! $field('Ultima comunicacion', $lastSeen ? e($lastSeen->diffForHumans()).' <span class="text-xs text-gray-500">('.e($lastSeen->format('Y-m-d H:i:s')).')</span>' : '<span class="text-gray-400">sin datos</span>') !!}
-                </dl>
-            </div>
-
-            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-gray-900">
-                <h2 class="text-sm font-semibold text-gray-950 dark:text-white">Acciones disponibles</h2>
-                <p class="mt-3 text-sm text-gray-600 dark:text-gray-300">
-                    Los comandos operativos estan arriba en la barra de acciones. Usar FCM para respuesta inmediata y polling cuando el equipo solo consulta cola.
-                </p>
-                <div class="mt-4 space-y-2 text-xs text-gray-500 dark:text-gray-400">
-                    <div>Reinicio app/equipo, despertar push, detener/reanudar.</div>
-                    <div>Diagnostico, logs, estabilidad y mantenimiento.</div>
-                    <div>Historial completo en la pestana Comandos.</div>
-                </div>
-            </div>
-        </section>
-
-        <section x-show="tab === 'salud'" class="grid gap-4 lg:grid-cols-2">
-            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-gray-900">
-                <h2 class="text-sm font-semibold text-gray-950 dark:text-white">Estado operativo</h2>
-                <dl class="mt-4">
-                    {!! $field('Estado global', '<span class="uppercase">'.e($status).'</span>') !!}
-                    {!! $field('App al frente', e($fgLabel)) !!}
-                    {!! $field('Red', e($fmt(data_get($hm, 'network.type', data_get($hm, 'network'))))) !!}
-                    {!! $field('Sentinel', e($fmt(data_get($hm, 'sentinel.sentinel_watch_status', data_get($hm, 'sentinel_watch_status', data_get($hm, 'sentinel')))))) !!}
-                    {!! $field('Device Owner', e($fmt(data_get($hm, 'device_owner.enabled', data_get($hm, 'device_owner'))))) !!}
-                    {!! $field('Lock task', e($fmt(data_get($hm, 'lock_task.active', data_get($hm, 'lock_task'))))) !!}
-                    {!! $field('Intervencion', !empty($hm['requires_intervention']) ? '<span class="text-red-600 dark:text-red-400">requerida</span>' : 'no requerida') !!}
-                    {!! $field('Uptime', $health?->uptime_s ? number_format($health->uptime_s).' s' : '<span class="text-gray-400">sin datos</span>') !!}
-                </dl>
-            </div>
-
-            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-gray-900">
-                <h2 class="text-sm font-semibold text-gray-950 dark:text-white">Fallas y estabilidad</h2>
-                <div class="mt-4 space-y-3">
-                    @if ($requirements?->failures)
-                        @foreach ($requirements->failures as $failure)
-                            <div class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
-                                <div class="font-medium">{{ data_get($failure, 'code', data_get($failure, 'name', 'Falla')) }}</div>
-                                <div class="mt-1 text-xs opacity-80">{{ data_get($failure, 'message', json_encode($failure)) }}</div>
-                            </div>
-                        @endforeach
-                    @else
-                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-300">
-                            No hay fallas de prerequisitos registradas.
+                    <div class="flx-metrics">
+                        <div class="flx-metric">
+                            <div class="flx-metric-label">Ultimo latido</div>
+                            <div class="flx-metric-value">{{ $reportedAt ? $reportedAt->diffForHumans() : 'sin datos' }}</div>
+                            <div class="flx-metric-hint">{{ $reportedAt?->format('Y-m-d H:i:s') }}</div>
                         </div>
-                    @endif
-
-                    <dl>
-                        {!! $field('Ultimo evento', e($stability?->last_stability_event ?? 'sin datos')) !!}
-                        {!! $field('Ultimo evento en', $stability?->last_stability_event_at ? e($stability->last_stability_event_at->diffForHumans()) : '<span class="text-gray-400">sin datos</span>') !!}
-                        {!! $field('UI congelada', $stability?->ui_frozen === null ? '<span class="text-gray-400">sin datos</span>' : ($stability->ui_frozen ? '<span class="text-red-600 dark:text-red-400">si</span>' : 'no')) !!}
-                        {!! $field('Ultimo tick UI', $stability?->ui_last_tick_at ? e($stability->ui_last_tick_at->diffForHumans()) : '<span class="text-gray-400">sin datos</span>') !!}
-                        {!! $field('Recuperacion', e($stability?->last_recovery_action ?? 'sin accion')) !!}
-                    </dl>
+                        <div class="flx-metric">
+                            <div class="flx-metric-label">Bateria</div>
+                            <div class="flx-metric-value">{{ $battery !== null ? $battery.'%' : 'sin datos' }}</div>
+                        </div>
+                        <div class="flx-metric">
+                            <div class="flx-metric-label">VLS</div>
+                            <div class="flx-metric-value">{{ $vlsVer ?: 'sin version' }}</div>
+                            <div class="flx-metric-hint">{{ $vlsCode ? 'code '.$vlsCode : '' }}</div>
+                        </div>
+                        <div class="flx-metric">
+                            <div class="flx-metric-label">Sentinel</div>
+                            <div class="flx-metric-value">{{ $senVer ?: 'sin version' }}</div>
+                            <div class="flx-metric-hint">{{ $senCode ? 'code '.$senCode : '' }}</div>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-gray-900 lg:col-span-2">
-                <h2 class="text-sm font-semibold text-gray-950 dark:text-white">Eventos de estabilidad recientes</h2>
-                <div class="mt-4 divide-y divide-gray-100 dark:divide-white/5">
-                    @forelse ($stabilityEvents as $event)
-                        <div class="py-3">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <div class="text-sm font-medium text-gray-950 dark:text-white">{{ $event->event_type }} - {{ $event->severity }}</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">{{ $event->occurred_at?->format('Y-m-d H:i:s') }}</div>
+                <div class="flx-status-row">
+                    <div class="flx-status-card">
+                        <div class="flx-kicker">Supervision remota</div>
+                        <div class="flx-status-main">{{ $supervision?->state ?? 'sin estado' }}</div>
+                        <div class="flx-status-sub">{{ $supervision?->reason ?? 'sin motivo activo' }}</div>
+                    </div>
+                    <div class="flx-status-card">
+                        <div class="flx-kicker">Prerequisitos</div>
+                        <div class="flx-status-main"><span class="flx-pill {{ $reqTone }}">{{ $requirements?->ok === true ? 'OK' : ($requirements ? 'requiere atencion' : 'sin datos') }}</span></div>
+                        <div class="flx-status-sub">Criticos: {{ $requirements?->critical_count ?? 0 }} - Warnings: {{ $requirements?->warning_count ?? 0 }}</div>
+                    </div>
+                    <div class="flx-status-card">
+                        <div class="flx-kicker">Estabilidad</div>
+                        <div class="flx-status-main"><span class="flx-pill {{ $stabilityTone }}">{{ $stability?->stability_status ?? 'sin datos' }}</span></div>
+                        <div class="flx-status-sub">Crash {{ $stability?->crash_count_24h ?? 0 }} - ANR {{ $stability?->anr_count_24h ?? 0 }} - UI {{ $stability?->ui_freeze_count_24h ?? 0 }}</div>
+                    </div>
+                </div>
+            </section>
+
+            <nav class="flx-tabs" aria-label="Device tabs">
+                @foreach ($tabs as $key => $label)
+                    <button type="button" @click="tab = '{{ $key }}'" :class="{ 'active': tab === '{{ $key }}' }" class="flx-tab">{{ $label }}</button>
+                @endforeach
+            </nav>
+
+            <section x-show="tab === 'resumen'" x-cloak class="flx-grid">
+                <div class="flx-card">
+                    <div class="flx-card-head"><h2 class="flx-card-title">Identidad y conectividad</h2></div>
+                    <div class="flx-card-body flx-fields">
+                        <div class="flx-field"><div class="flx-label">Codigo</div><div class="flx-value">{{ $device->code }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Sitio</div><div class="flx-value">{{ $site?->code ?? 'sin sitio' }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Modelo</div><div class="flx-value">{{ $device->model ?? 'sin modelo' }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Device key</div><div class="flx-value"><code>{{ $maskKey ?: 'sin key' }}</code></div></div>
+                        <div class="flx-field"><div class="flx-label">FCM token</div><div class="flx-value"><span class="flx-pill {{ $device->fcm_token ? 'ok' : 'warn' }}">{{ $device->fcm_token ? 'presente' : 'ausente' }}</span></div></div>
+                        <div class="flx-field"><div class="flx-label">FCM actualizado</div><div class="flx-value">{{ $device->fcm_token_at ? $device->fcm_token_at->diffForHumans() : 'sin datos' }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Ultima comunicacion</div><div class="flx-value">{{ $lastSeen ? $lastSeen->diffForHumans().' ('.$lastSeen->format('Y-m-d H:i:s').')' : 'sin datos' }}</div></div>
+                    </div>
+                </div>
+                <div class="flx-card">
+                    <div class="flx-card-head"><h2 class="flx-card-title">Operacion</h2></div>
+                    <div class="flx-card-body">
+                        <div class="flx-note">Acciones principales arriba: reiniciar, despertar y reanudar. Las acciones de diagnostico, logs, stop, reset y mantenimiento estan agrupadas en el menu Mas acciones.</div>
+                    </div>
+                </div>
+            </section>
+
+            <section x-show="tab === 'salud'" x-cloak class="flx-grid-2">
+                <div class="flx-card">
+                    <div class="flx-card-head"><h2 class="flx-card-title">Estado operativo</h2></div>
+                    <div class="flx-card-body flx-fields">
+                        <div class="flx-field"><div class="flx-label">Estado global</div><div class="flx-value">{{ strtoupper($status) }}</div></div>
+                        <div class="flx-field"><div class="flx-label">App al frente</div><div class="flx-value">{{ $fgLabel }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Red</div><div class="flx-value">{{ $fmt(data_get($hm, 'network.type', data_get($hm, 'network'))) }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Sentinel</div><div class="flx-value">{{ $fmt(data_get($hm, 'sentinel.sentinel_watch_status', data_get($hm, 'sentinel_watch_status', data_get($hm, 'sentinel')))) }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Device Owner</div><div class="flx-value">{{ $fmt(data_get($hm, 'device_owner.enabled', data_get($hm, 'device_owner'))) }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Lock task</div><div class="flx-value">{{ $fmt(data_get($hm, 'lock_task.active', data_get($hm, 'lock_task'))) }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Intervencion</div><div class="flx-value">{{ !empty($hm['requires_intervention']) ? 'requerida' : 'no requerida' }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Uptime</div><div class="flx-value">{{ $health?->uptime_s ? number_format($health->uptime_s).' s' : 'sin datos' }}</div></div>
+                    </div>
+                </div>
+                <div class="flx-card">
+                    <div class="flx-card-head"><h2 class="flx-card-title">Fallas y estabilidad</h2></div>
+                    <div class="flx-card-body flx-fields">
+                        <div class="flx-field"><div class="flx-label">Ultimo evento</div><div class="flx-value">{{ $stability?->last_stability_event ?? 'sin datos' }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Ultimo evento en</div><div class="flx-value">{{ $stability?->last_stability_event_at ? $stability->last_stability_event_at->diffForHumans() : 'sin datos' }}</div></div>
+                        <div class="flx-field"><div class="flx-label">UI congelada</div><div class="flx-value">{{ $stability?->ui_frozen === null ? 'sin datos' : ($stability->ui_frozen ? 'si' : 'no') }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Ultimo tick UI</div><div class="flx-value">{{ $stability?->ui_last_tick_at ? $stability->ui_last_tick_at->diffForHumans() : 'sin datos' }}</div></div>
+                        <div class="flx-field"><div class="flx-label">Recuperacion</div><div class="flx-value">{{ $stability?->last_recovery_action ?? 'sin accion' }}</div></div>
+                    </div>
+                </div>
+                <div class="flx-card" style="grid-column: 1 / -1;">
+                    <div class="flx-card-head"><h2 class="flx-card-title">Eventos de estabilidad recientes</h2></div>
+                    <div class="flx-list">
+                        @forelse ($stabilityEvents as $event)
+                            <div class="flx-item">
+                                <div class="flx-item-top">
+                                    <div class="flx-item-title">{{ $event->event_type }} - {{ $event->severity }}</div>
+                                    <div class="flx-item-meta">{{ $event->occurred_at?->format('Y-m-d H:i:s') }}</div>
+                                </div>
+                                <div class="flx-item-meta">{{ $event->summary ?: 'Sin resumen' }}</div>
                             </div>
-                            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ $event->summary ?: 'Sin resumen' }}</p>
+                        @empty
+                            <div class="flx-empty">Sin eventos de estabilidad recientes.</div>
+                        @endforelse
+                    </div>
+                </div>
+            </section>
+
+            <section x-show="tab === 'comandos'" x-cloak class="flx-card">
+                <div class="flx-card-head"><h2 class="flx-card-title">Historial de comandos</h2></div>
+                <div class="flx-list">
+                    @forelse ($commands as $c)
+                        <div class="flx-item">
+                            <div class="flx-item-top">
+                                <div class="flx-item-title"><code>{{ $c->cmd }}</code></div>
+                                <span class="flx-pill {{ $c->status === 'done' ? 'ok' : ($c->status === 'failed' ? 'fail' : ($c->status === 'pending' ? 'warn' : 'muted')) }}">{{ $c->status }}</span>
+                            </div>
+                            <div class="flx-item-meta">
+                                <span>canal: {{ $c->channel }}@if($c->exec_channel && $c->exec_channel !== $c->channel) -> {{ $c->exec_channel }}@endif</span>
+                                <span>creado: {{ $c->created_at?->diffForHumans() }}</span>
+                                @if($c->picked_at)<span>tomado: {{ $c->picked_at->diffForHumans() }}</span>@endif
+                                @if($c->done_at)<span>cerrado: {{ $c->done_at->diffForHumans() }}</span>@endif
+                            </div>
+                            @if($c->result)<div class="flx-result">{{ \Illuminate\Support\Str::limit($c->result, 260) }}</div>@endif
                         </div>
                     @empty
-                        <p class="py-4 text-sm text-gray-500 dark:text-gray-400">Sin eventos de estabilidad recientes.</p>
+                        <div class="flx-empty">Sin comandos registrados.</div>
                     @endforelse
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <section x-show="tab === 'comandos'" class="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
-            <div class="border-b border-gray-100 px-5 py-4 dark:border-white/10">
-                <h2 class="text-sm font-semibold text-gray-950 dark:text-white">Historial de comandos</h2>
-            </div>
-            <div class="divide-y divide-gray-100 dark:divide-white/5">
-                @forelse ($commands as $c)
-                    <div class="px-5 py-4">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <div class="font-mono text-sm font-semibold text-gray-950 dark:text-white">{{ $c->cmd }}</div>
-                            <span @class([
-                                'rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset',
-                                'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-500/10 dark:text-green-300' => $c->status === 'done',
-                                'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-500/10 dark:text-red-300' => $c->status === 'failed',
-                                'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300' => $c->status === 'pending',
-                                'bg-gray-50 text-gray-600 ring-gray-600/20 dark:bg-white/5 dark:text-gray-300' => ! in_array($c->status, ['done', 'failed', 'pending']),
-                            ])>{{ $c->status }}</span>
-                        </div>
-                        <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                            <span>canal: {{ $c->channel }}@if ($c->exec_channel && $c->exec_channel !== $c->channel) -> {{ $c->exec_channel }}@endif</span>
-                            <span>creado: {{ $c->created_at?->diffForHumans() }}</span>
-                            @if ($c->picked_at)<span>tomado: {{ $c->picked_at->diffForHumans() }}</span>@endif
-                            @if ($c->done_at)<span>cerrado: {{ $c->done_at->diffForHumans() }}</span>@endif
-                        </div>
-                        @if ($c->result)
-                            <p class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-white/5 dark:text-gray-300">{{ \Illuminate\Support\Str::limit($c->result, 260) }}</p>
+            <section x-show="tab === 'logs'" x-cloak class="flx-grid">
+                <div class="flx-card">
+                    <div class="flx-card-head"><h2 class="flx-card-title">Ultimo paquete de logs</h2></div>
+                    <div class="flx-card-body flx-fields">
+                        @if($lastLog)
+                            <div class="flx-field"><div class="flx-label">Origen</div><div class="flx-value">{{ $lastLog->source }}</div></div>
+                            <div class="flx-field"><div class="flx-label">Resumen</div><div class="flx-value">{{ $lastLog->summary ?: 'sin resumen' }}</div></div>
+                            <div class="flx-field"><div class="flx-label">Build</div><div class="flx-value">{{ $lastLog->build ?: 'sin build' }}</div></div>
+                            <div class="flx-field"><div class="flx-label">Tamano</div><div class="flx-value">{{ $lastLog->size ? number_format($lastLog->size / 1024, 0).' KB' : 'sin datos' }}</div></div>
+                            <div class="flx-field"><div class="flx-label">Recibido</div><div class="flx-value">{{ $lastLog->reported_at ? $lastLog->reported_at->diffForHumans() : 'sin datos' }}</div></div>
+                            <div style="margin-top:14px;"><a href="{{ route('device-logs.download', $lastLog) }}" class="flx-link-btn primary">Descargar ultimo log</a></div>
+                        @else
+                            <div class="flx-empty">No hay logs recibidos.</div>
                         @endif
                     </div>
-                @empty
-                    <p class="px-5 py-6 text-center text-sm text-gray-500 dark:text-gray-400">Sin comandos registrados.</p>
-                @endforelse
-            </div>
-        </section>
+                </div>
+                <div class="flx-card">
+                    <div class="flx-card-head"><h2 class="flx-card-title">Operativa</h2></div>
+                    <div class="flx-card-body"><div class="flx-note">Pedir diagnostico o logs desde Mas acciones. Cuando el equipo suba el paquete, quedara disponible aqui.</div></div>
+                </div>
+            </section>
 
-        <section x-show="tab === 'logs'" class="grid gap-4 lg:grid-cols-3">
-            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-gray-900 lg:col-span-2">
-                <h2 class="text-sm font-semibold text-gray-950 dark:text-white">Ultimo paquete de logs</h2>
-                @if ($lastLog)
-                    <dl class="mt-4">
-                        {!! $field('Origen', e($lastLog->source)) !!}
-                        {!! $field('Resumen', e($lastLog->summary ?: 'sin resumen')) !!}
-                        {!! $field('Build', e($lastLog->build ?: 'sin build')) !!}
-                        {!! $field('Tamano', $lastLog->size ? number_format($lastLog->size / 1024, 0).' KB' : '<span class="text-gray-400">sin datos</span>') !!}
-                        {!! $field('Recibido', $lastLog->reported_at ? e($lastLog->reported_at->diffForHumans()) : '<span class="text-gray-400">sin datos</span>') !!}
-                    </dl>
-                    <a href="{{ route('device-logs.download', $lastLog) }}" class="mt-4 inline-flex rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-500">
-                        Descargar ultimo log
-                    </a>
-                @else
-                    <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">No hay logs recibidos.</p>
-                @endif
-            </div>
-            <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-gray-900">
-                <h2 class="text-sm font-semibold text-gray-950 dark:text-white">Operativa</h2>
-                <p class="mt-3 text-sm text-gray-600 dark:text-gray-300">
-                    Para analizar un equipo en campo, primero pedir diagnostico o logs desde la barra superior; cuando el equipo suba el paquete, quedara disponible aqui.
-                </p>
-            </div>
-        </section>
+            <section x-show="tab === 'media'" x-cloak class="flx-card">
+                <div class="flx-card-head"><h2 class="flx-card-title">Imagenes y videos recientes</h2></div>
+                <div class="flx-list">
+                    @forelse ($media as $mediaItem)
+                        <div class="flx-item">
+                            <div class="flx-item-top">
+                                <div>
+                                    <div class="flx-item-title">{{ $mediaItem->tipo }} - {{ $mediaItem->ts_start?->format('Y-m-d H:i:s') }}</div>
+                                    <div class="flx-item-meta">{{ $mediaItem->size_mb ? $mediaItem->size_mb.' MB' : 'sin tamano' }}</div>
+                                </div>
+                                <div class="flx-actions-inline">
+                                    <a href="{{ route('media.view', $mediaItem) }}" target="_blank" class="flx-link-btn">Ver</a>
+                                    <a href="{{ route('media.download', $mediaItem) }}" class="flx-link-btn primary">Descargar</a>
+                                </div>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="flx-empty">Sin media disponible.</div>
+                    @endforelse
+                </div>
+            </section>
 
-        <section x-show="tab === 'media'" class="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
-            <div class="border-b border-gray-100 px-5 py-4 dark:border-white/10">
-                <h2 class="text-sm font-semibold text-gray-950 dark:text-white">Imagenes y videos recientes</h2>
-            </div>
-            <div class="divide-y divide-gray-100 dark:divide-white/5">
-                @forelse ($media as $mediaItem)
-                    <div class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="min-w-0">
-                            <p class="truncate text-sm font-medium text-gray-950 dark:text-white">{{ $mediaItem->tipo }} - {{ $mediaItem->ts_start?->format('Y-m-d H:i:s') }}</p>
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $mediaItem->size_mb ? $mediaItem->size_mb.' MB' : 'sin tamano' }}</p>
+            <section x-show="tab === 'telemetria'" x-cloak class="flx-card">
+                <div class="flx-card-head"><h2 class="flx-card-title">Telemetria reciente</h2></div>
+                <div class="flx-list">
+                    @forelse ($telemetry as $t)
+                        <div class="flx-item">
+                            <div class="flx-item-top">
+                                <div class="flx-item-title">{{ $t->ts?->format('Y-m-d H:i:s') }}</div>
+                                <div class="flx-item-meta">zona {{ $t->zone ?? 'sin zona' }}</div>
+                            </div>
+                            <div class="flx-item-meta">
+                                <span>ocupacion: {{ $t->occupancy ?? 'sin datos' }}</span>
+                                <span>presion: {{ $t->pressure ?? 'sin datos' }}</span>
+                                <span>congestion: {{ $t->congestion ?? 'sin datos' }}</span>
+                                <span>decision: {{ $t->decision ?? 'sin datos' }}</span>
+                            </div>
                         </div>
-                        <div class="flex shrink-0 gap-2 text-sm">
-                            <a href="{{ route('media.view', $mediaItem) }}" target="_blank" class="rounded-lg border border-gray-200 px-3 py-1.5 text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/5">Ver</a>
-                            <a href="{{ route('media.download', $mediaItem) }}" class="rounded-lg bg-primary-600 px-3 py-1.5 text-white hover:bg-primary-500">Descargar</a>
-                        </div>
-                    </div>
-                @empty
-                    <p class="px-5 py-6 text-center text-sm text-gray-500 dark:text-gray-400">Sin media disponible.</p>
-                @endforelse
-            </div>
-        </section>
-
-        <section x-show="tab === 'telemetria'" class="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
-            <div class="border-b border-gray-100 px-5 py-4 dark:border-white/10">
-                <h2 class="text-sm font-semibold text-gray-950 dark:text-white">Telemetria reciente</h2>
-            </div>
-            <div class="divide-y divide-gray-100 dark:divide-white/5">
-                @forelse ($telemetry as $t)
-                    <div class="px-5 py-4">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <div class="text-sm font-medium text-gray-950 dark:text-white">{{ $t->ts?->format('Y-m-d H:i:s') }}</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">zona {{ $t->zone ?? 'sin zona' }}</div>
-                        </div>
-                        <div class="mt-2 grid gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-4">
-                            <span>ocupacion: {{ $t->occupancy ?? 'sin datos' }}</span>
-                            <span>presion: {{ $t->pressure ?? 'sin datos' }}</span>
-                            <span>congestion: {{ $t->congestion ?? 'sin datos' }}</span>
-                            <span>decision: {{ $t->decision ?? 'sin datos' }}</span>
-                        </div>
-                    </div>
-                @empty
-                    <p class="px-5 py-6 text-center text-sm text-gray-500 dark:text-gray-400">Sin telemetria reciente.</p>
-                @endforelse
-            </div>
-            <div class="border-t border-gray-100 px-5 py-4 dark:border-white/10">
-                <a href="{{ \App\Filament\Pages\Mapa::getUrl() }}" class="text-sm font-medium text-primary-600 hover:underline dark:text-primary-400">Ver mapa operativo</a>
-            </div>
-        </section>
+                    @empty
+                        <div class="flx-empty">Sin telemetria reciente.</div>
+                    @endforelse
+                </div>
+                <div class="flx-card-body" style="border-top:1px solid #e5e7eb;"><a href="{{ \App\Filament\Pages\Mapa::getUrl() }}" class="flx-link-btn">Ver mapa operativo</a></div>
+            </section>
+        </div>
     </div>
 </x-filament-panels::page>
