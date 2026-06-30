@@ -71,7 +71,7 @@ class CommandController extends Controller
         return response()->json([
             'ok' => true,
             'id' => $result['command']->id,
-            // FLX-0040: el canal REAL del comando (puede diferir del pedido: restart device -> fcm forzado).
+            // FLX-0062: el canal REAL del comando (puede diferir del pedido: restart device -> 'auto').
             'channel' => $result['command']->channel,
             'pushed' => $result['pushed'],
         ], 201);

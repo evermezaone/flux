@@ -74,36 +74,45 @@ class CommandChannelTest extends TestCase
         $this->assertCount(1, $res); // solo el 'poll', no el 'fcm'
     }
 
-    public function test_restart_device_se_fuerza_a_fcm(): void
+    public function test_restart_device_usa_canal_auto(): void
     {
-        // FLX-0040: el reinicio de telefono (level=device) se fuerza a FCM aunque se pida poll/auto,
-        // para no quedar en cola y re-ejecutarse tras el reboot.
+        // FLX-0062: el reinicio de telefono (level=device) usa canal 'auto' (push FCM si hay token + poll de
+        // respaldo). Reemplaza el forzado a 'fcm' (FLX-0040), que lo dejaba indeliverable sin token FCM.
         $user = User::factory()->create();
         $d = $this->device(token: 'tok-dev');
 
         $mock = Mockery::mock(FcmSender::class);
-        $mock->shouldReceive('send')->once()->andReturn(true); // se empuja por FCM
+        $mock->shouldReceive('send')->once()->andReturn(true); // con token: ademas del poll, se empuja por FCM
         $this->app->instance(FcmSender::class, $mock);
 
         $this->actingAs($user)->postJson('/api/v1/commands', [
             'device' => $d->code, 'cmd' => 'restart', 'params' => ['level' => 'device'], 'channel' => 'poll',
-        ])->assertSuccessful()->assertJsonPath('channel', 'fcm')->assertJsonPath('pushed', true);
+        ])->assertSuccessful()->assertJsonPath('channel', 'auto')->assertJsonPath('pushed', true);
 
-        $this->assertDatabaseHas('commands', ['device_id' => $d->id, 'cmd' => 'restart', 'channel' => 'fcm']);
+        $this->assertDatabaseHas('commands', ['device_id' => $d->id, 'cmd' => 'restart', 'channel' => 'auto']);
     }
 
-    public function test_restart_device_fcm_no_se_entrega_por_polling(): void
+    public function test_restart_device_se_entrega_por_poll_sin_token_y_no_hace_loop(): void
     {
-        // El restart device (forzado fcm) NO sale en el pull -> no se re-ejecuta post-reboot.
-        $d = $this->device(key: 'k-dev2', code: 'tel-dev2', token: 'tok-dev2');
+        // FLX-0062 (caso de campo): SIN token FCM, el reboot DEBE entregarse por poll (antes, forzado a 'fcm',
+        // quedaba 'pending' para siempre). Anti reboot-loop: al entregarlo, el poll lo marca 'sent' -> un
+        // segundo poll (post-reboot) NO lo re-entrega.
+        $d = $this->device(key: 'k-dev2', code: 'tel-dev2'); // SIN token -> FCM no disponible (caso real de campo)
         $mock = Mockery::mock(FcmSender::class);
-        $mock->shouldReceive('send')->andReturn(true);
+        $mock->shouldNotReceive('send'); // sin token, no se empuja
         $this->app->instance(FcmSender::class, $mock);
 
         app(\App\Services\CommandDispatcher::class)->dispatch($d, 'restart', ['level' => 'device'], 'auto');
 
-        $res = $this->getJson('/api/v1/commands', ['X-Device-Key' => 'k-dev2'])->assertOk()->json('commands');
-        $this->assertCount(0, $res); // fcm puro: no se entrega por polling
+        // 1er poll: SE entrega (clave del fix).
+        $res1 = $this->getJson('/api/v1/commands', ['X-Device-Key' => 'k-dev2'])->assertOk()->json('commands');
+        $this->assertCount(1, $res1);
+        $this->assertSame('restart', $res1[0]['cmd']);
+
+        // Queda 'sent' -> 2do poll (post-reboot) NO lo re-entrega (sin reboot-loop).
+        $this->assertDatabaseHas('commands', ['device_id' => $d->id, 'cmd' => 'restart', 'status' => 'sent']);
+        $res2 = $this->getJson('/api/v1/commands', ['X-Device-Key' => 'k-dev2'])->assertOk()->json('commands');
+        $this->assertCount(0, $res2);
     }
 
     public function test_restart_app_respeta_el_canal_elegido(): void

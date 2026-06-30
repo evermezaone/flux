@@ -123,9 +123,10 @@ class RemoteSupervisor
                 break;
             case 3:
                 if ($cfg['allow_device_reboot']) {
-                    // restart device se fuerza a fcm en CommandDispatcher (FLX-0040).
-                    $this->dispatcher->dispatch($device, 'restart', ['level' => 'device'], 'fcm');
-                    $mark('restart_device', 'fcm', 'sin recuperacion -> reinicio equipo');
+                    // FLX-0062: restart device usa canal 'auto' en CommandDispatcher (FCM si hay token + poll de
+                    // respaldo). Aca pasamos 'auto' explicito; el dispatcher lo normaliza igual.
+                    $this->dispatcher->dispatch($device, 'restart', ['level' => 'device'], 'auto');
+                    $mark('restart_device', 'auto', 'sin recuperacion -> reinicio equipo');
                     $sup->step = 4;
                 } else {
                     $sup->state = 'requiere_intervencion';

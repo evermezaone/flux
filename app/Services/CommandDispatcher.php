@@ -26,11 +26,14 @@ class CommandDispatcher
      */
     public function dispatch(Device $device, string $cmd, ?array $params, string $channel = 'auto'): array
     {
-        // FLX-0040: el reinicio de TELEFONO (level=device) es destructivo y se usa cuando el equipo esta
-        // trabado (no consulta la cola). Forzar FCM puro (no auto, no poll): el polling NO entrega los
-        // comandos de canal 'fcm', asi un reboot no queda pendiente en cola y NO se re-ejecuta post-reboot.
+        // FLX-0062: el reinicio de TELEFONO (level=device) usa canal 'auto' (NO 'fcm' puro). 'auto' = push FCM
+        // (si hay token: alcanza a un equipo trabado) + cola para polling (RESPALDO indispensable: en campo el
+        // token FCM puede ser NULL —sin GMS/registro— y con 'fcm' puro el reboot quedaba 'pending' para siempre,
+        // indeliverable). Anti reboot-loop: el poll marca el comando 'sent' AL ENTREGAR (CommandController),
+        // antes del reboot -> deja de estar 'pending' y el poll post-reboot NO lo re-entrega. (Reemplaza el
+        // forzado a 'fcm' de FLX-0040, cuyo objetivo —no re-ejecutar post-reboot— ya lo cubre la marca 'sent'.)
         if ($cmd === 'restart' && ($params['level'] ?? null) === 'device') {
-            $channel = 'fcm';
+            $channel = 'auto';
         }
         // VLS-0084 / FLX-0053: un equipo detenido (stop_all) NO consulta la cola (polling apagado), pero FCM si
         // arranca el proceso. El "Reanudar" debe ir por FCM puro para que llegue al equipo detenido.
